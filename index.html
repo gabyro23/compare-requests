@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSP_REQ Diff Inspector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+
+    <style>
+        :root {
+            --bg-base: #09090b; /* Zinc 950 */
+            --bg-panel: #18181b; /* Zinc 900 */
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent-glow: rgba(99, 102, 241, 0.4);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-base); 
+            color: #e4e4e7;
+            background-image: linear-gradient(var(--border-color) 1px, transparent 1px),
+                              linear-gradient(90deg, var(--border-color) 1px, transparent 1px);
+            background-size: 40px 40px;
+            background-position: -1px -1px;
+        }
+        
+        .glass-panel {
+            background: rgba(24, 24, 27, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+        }
+
+        .editor-container {
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color); 
+            background-color: var(--bg-panel);
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
+            transition: border-color 0.3s ease;
+        }
+        
+        .editor-container:focus-within {
+            border-color: rgba(99, 102, 241, 0.5); 
+        }
+
+        #input-editor-1, #input-editor-2 {
+            width: 100%;
+            height: 100%;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .ace_editor { background-color: transparent !important; }
+        .ace_gutter {
+            background-color: rgba(0, 0, 0, 0.2) !important;
+            color: #52525b !important;
+            border-right: 1px solid var(--border-color);
+        }
+        .ace_scroller { box-shadow: inset 10px 0 10px -10px rgba(0,0,0,0.3); }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+        .param-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .param-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px -4px rgba(0,0,0,0.5), 0 0 10px 0 var(--accent-glow);
+            border-color: rgba(99, 102, 241, 0.5);
+            background-color: #1f1f22;
+        }
+
+        .btn-glow {
+            transition: all 0.3s ease;
+        }
+        .btn-glow:hover:not(:disabled) {
+            box-shadow: 0 0 20px -5px var(--accent-glow);
+            transform: translateY(-1px);
+        }
+        .btn-glow:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+        
+        #params-list { overflow-x: hidden; }
+
+        /* Estilos específicos para badges de diff */
+        .status-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-changed { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .status-added { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .status-removed { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        
+        /* Highlight match */
+        .highlight { background-color: rgba(99, 102, 241, 0.5); color: white; padding: 0 2px; border-radius: 2px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-indigo-500/30 selection:text-white">
+
+    <header class="flex items-center justify-between p-4 glass-panel border-b-0 shrink-0 z-10 mx-4 mt-4 rounded-2xl shadow-xl">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 border border-white/10">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l8.58-8.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold tracking-tight text-white">
+                    SSP_REQ <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Diff Inspector</span>
+                </h1>
+                <p class="text-[11px] text-zinc-400 font-medium tracking-wide uppercase">Dev Tools</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <button id="load-example-btn" class="text-xs px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-zinc-300 transition-colors flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                Cargar Ejemplos
+            </button>
+            <div class="flex items-center gap-2">
+                <span class="relative flex h-3 w-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-20"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border border-emerald-800"></span>
+                </span>
+                <span class="text-xs text-zinc-400 font-medium">Ready</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col lg:flex-row min-h-0 gap-4 p-4 z-0">
+        
+        <div class="w-full lg:w-5/12 flex flex-col gap-4">
+            
+            <!-- Editor INPUT 1 -->
+            <div class="flex-1 flex flex-col glass-panel rounded-2xl p-4 shadow-2xl relative group min-h-[200px]">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs">1</span>
+                        <input type="text" id="req1-title" value="Request 1" class="text-xs font-semibold text-zinc-300 uppercase tracking-wider bg-transparent border-b border-transparent focus:border-indigo-500 outline-none w-28 placeholder-zinc-600 transition-colors" placeholder="Nombre...">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="req1-mode" class="text-[10px] bg-black/30 border border-white/10 rounded px-1.5 py-1 text-zinc-400 outline-none focus:border-indigo-500 transition-colors font-medium">
+                            <option value="log">Log Completo</option>
+                            <option value="formatted">Formatted Req</option>
+                        </select>
+                        <button id="req1-dl" class="text-zinc-500 hover:text-indigo-400 transition-colors p-1" title="Descargar JSON Formateado">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="editor-container flex-1 relative">
+                    <div id="input-editor-1"></div>
+                </div>
+            </div>
+
+            <!-- Editor INPUT 2 -->
+            <div class="flex-1 flex flex-col glass-panel rounded-2xl p-4 shadow-2xl relative group min-h-[200px]">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-md bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs">2</span>
+                        <input type="text" id="req2-title" value="Request 2" class="text-xs font-semibold text-zinc-300 uppercase tracking-wider bg-transparent border-b border-transparent focus:border-cyan-500 outline-none w-28 placeholder-zinc-600 transition-colors" placeholder="Nombre...">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="req2-mode" class="text-[10px] bg-black/30 border border-white/10 rounded px-1.5 py-1 text-zinc-400 outline-none focus:border-cyan-500 transition-colors font-medium">
+                            <option value="log">Log Completo</option>
+                            <option value="formatted">Formatted Req</option>
+                        </select>
+                        <button id="req2-dl" class="text-zinc-500 hover:text-cyan-400 transition-colors p-1" title="Descargar JSON Formateado">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="editor-container flex-1 relative">
+                    <div id="input-editor-2"></div>
+                </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="flex gap-3 shrink-0">
+                <button id="compare-btn" class="btn-glow flex-1 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-xl transition-all text-sm font-bold flex items-center justify-center gap-2 border border-indigo-400/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
+                    Comparar Requests
+                </button>
+                <button id="clear-btn" class="btn-glow px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-red-400 hover:text-red-300 rounded-xl transition-all text-sm font-semibold border border-zinc-700 hover:border-zinc-500 flex items-center justify-center gap-2" title="Limpiar todo">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="w-full lg:w-7/12 flex flex-col glass-panel rounded-2xl shadow-2xl relative overflow-hidden flex-1 border border-white/10">
+            
+            <!-- Barra de Búsqueda Flotante -->
+            <div class="p-4 border-b border-white/5 bg-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0 backdrop-blur-md">
+                <div class="flex flex-col">
+                    <h2 class="text-sm font-semibold text-white flex items-center gap-2">
+                        Comparador de Parámetros
+                    </h2>
+                    <p class="text-xs text-zinc-400 mt-1">Encuentra diferencias rápidamente</p>
+                </div>
+                
+                <div class="flex items-center gap-3 w-full sm:w-auto">
+                    <!-- Toggle Switch para "Solo diferencias" -->
+                    <label class="flex items-center cursor-pointer gap-2 mr-2">
+                        <div class="relative">
+                            <input type="checkbox" id="toggle-diff-only" class="sr-only" checked disabled>
+                            <div class="block bg-zinc-700 w-10 h-6 rounded-full transition-colors toggle-bg"></div>
+                            <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform transform translate-x-4"></div>
+                        </div>
+                        <span class="text-xs text-zinc-300 font-medium whitespace-nowrap">Solo Diff</span>
+                    </label>
+
+                    <div class="relative w-full sm:w-64 group">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-indigo-400 transition-colors"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input type="text" id="search-param" placeholder="Buscar llave o valor (ej. pid)..." class="w-full bg-[#09090b] border border-zinc-700/80 rounded-lg py-2 pl-9 pr-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all disabled:opacity-50 shadow-inner" disabled>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cabecera de Columnas para Resultados -->
+            <div class="hidden sm:flex px-7 py-2 bg-black/30 border-b border-white/5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm" id="table-header" style="display: none;">
+                <div class="w-full mt-1">
+                    <div class="flex">
+                        <div class="flex-1 flex justify-center"><span class="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded truncate max-w-[200px]" id="col1-name">Request 1</span></div>
+                        <div class="w-8"></div>
+                        <div class="flex-1 flex justify-center"><span class="bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded truncate max-w-[200px]" id="col2-name">Request 2</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista Dinámica -->
+            <div id="params-list" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3 relative scroll-smooth pb-12">
+                <!-- Estado Vacío Mejorado -->
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 p-8 text-center bg-gradient-to-b from-transparent to-black/20" id="empty-state">
+                    <div class="w-20 h-20 bg-zinc-800/50 rounded-full flex items-center justify-center mb-6 border border-zinc-700/50 shadow-inner">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-zinc-600"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    </div>
+                    <h3 class="text-zinc-300 font-semibold mb-2">Esperando Requests</h3>
+                    <p class="text-sm max-w-xs text-zinc-500 leading-relaxed">Pega ambos logs en el panel izquierdo y presiona comparar para ver las diferencias parámetro a parámetro.</p>
+                </div>
+            </div>
+            
+            <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#18181b] to-transparent pointer-events-none"></div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            ace.config.set('basePath', 'https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/');
+
+            // Configuración Editor 1
+            const editor1 = ace.edit("input-editor-1");
+            editor1.setTheme("ace/theme/tomorrow_night_eighties");
+            editor1.session.setMode("ace/mode/json");
+            editor1.setShowPrintMargin(false);
+            editor1.setOptions({ fontFamily: "'JetBrains Mono', monospace", fontSize: "13px", scrollPastEnd: 0.5 });
+            
+            // Configuración Editor 2
+            const editor2 = ace.edit("input-editor-2");
+            editor2.setTheme("ace/theme/tomorrow_night_eighties");
+            editor2.session.setMode("ace/mode/json");
+            editor2.setShowPrintMargin(false);
+            editor2.setOptions({ fontFamily: "'JetBrains Mono', monospace", fontSize: "13px", scrollPastEnd: 0.5 });
+
+            // Elementos DOM
+            const compareBtn = document.getElementById('compare-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const searchInput = document.getElementById('search-param');
+            const paramsList = document.getElementById('params-list');
+            const emptyState = document.getElementById('empty-state');
+            const tableHeader = document.getElementById('table-header');
+            const toggleDiffOnly = document.getElementById('toggle-diff-only');
+            const loadExampleBtn = document.getElementById('load-example-btn');
+
+            // Elementos nuevos para títulos, descargas y modos
+            const req1Title = document.getElementById('req1-title');
+            const req2Title = document.getElementById('req2-title');
+            const col1Name = document.getElementById('col1-name');
+            const col2Name = document.getElementById('col2-name');
+            const req1Mode = document.getElementById('req1-mode');
+            const req2Mode = document.getElementById('req2-mode');
+            const req1Dl = document.getElementById('req1-dl');
+            const req2Dl = document.getElementById('req2-dl');
+
+            let currentDiffData = [];
+
+            function findSspReq(obj) {
+                if (!obj || typeof obj !== 'object') return null;
+                if (obj.message === "SSP_REQ" && obj.log) return obj;
+                
+                if (Array.isArray(obj)) {
+                    for (let item of obj) {
+                        const found = findSspReq(item);
+                        if (found) return found;
+                    }
+                } else {
+                    for (let key in obj) {
+                        const found = findSspReq(obj[key]);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            }
+
+            function flattenJSON(data, prefix = '') {
+                let result = {};
+                for (let key in data) {
+                    let newKey = prefix ? (Array.isArray(data) ? `${prefix}[${key}]` : `${prefix}.${key}`) : key;
+                    if (data[key] !== null && typeof data[key] === 'object') {
+                        if (Object.keys(data[key]).length === 0) {
+                            result[newKey] = Array.isArray(data[key]) ? "[]" : "{}";
+                        } else {
+                            Object.assign(result, flattenJSON(data[key], newKey));
+                        }
+                    } else {
+                        result[newKey] = data[key];
+                    }
+                }
+                return result;
+            }
+
+            function parseRequest(rawText, mode) {
+                if (!rawText.trim()) throw new Error("Vacio");
+                let parsed = JSON.parse(rawText);
+                
+                if (mode === 'formatted') {
+                    return parsed; // Si ya está formateado, lo devolvemos tal cual
+                }
+                
+                let sspReq = findSspReq(parsed);
+                if (!sspReq) throw new Error("No SSP_REQ");
+                return JSON.parse(sspReq.log);
+            }
+
+            function generateDiff(flat1, flat2) {
+                const allKeys = Array.from(new Set([...Object.keys(flat1), ...Object.keys(flat2)])).sort();
+                const diffs = [];
+
+                allKeys.forEach(key => {
+                    const val1 = flat1[key];
+                    const val2 = flat2[key];
+                    let status = 'equal';
+                    
+                    if (val1 === undefined) status = 'added';
+                    else if (val2 === undefined) status = 'removed';
+                    else if (val1 !== val2) status = 'changed';
+
+                    diffs.push({
+                        key,
+                        val1: val1 !== undefined ? String(val1) : null,
+                        val2: val2 !== undefined ? String(val2) : null,
+                        status
+                    });
+                });
+                return diffs;
+            }
+
+            function formatValue(val) {
+                if (val === null) return '';
+                // Añadir comillas si es texto para mejor visualización tipo JSON
+                if (val === "true" || val === "false" || !isNaN(val)) return val;
+                return `"${val}"`;
+            }
+
+            function renderDiffs(diffs) {
+                emptyState.style.display = 'none';
+                tableHeader.style.display = 'flex';
+                searchInput.disabled = false;
+                toggleDiffOnly.disabled = false;
+                paramsList.innerHTML = ''; 
+
+                if (diffs.length === 0) {
+                    paramsList.innerHTML = '<div class="text-zinc-500 text-sm p-4 text-center mt-10">No se encontraron parámetros.</div>';
+                    return;
+                }
+
+                diffs.forEach(item => {
+                    const row = document.createElement('div');
+                    row.className = 'param-row param-card flex flex-col p-3.5 bg-[#121214] rounded-xl border border-white/5 group gap-2';
+                    row.dataset.key = item.key;
+                    row.dataset.status = item.status;
+                    row.dataset.v1 = item.val1 || "";
+                    row.dataset.v2 = item.val2 || "";
+
+                    // Cabecera: Llave y Badge
+                    const header = document.createElement('div');
+                    header.className = 'flex justify-between items-center';
+                    
+                    const keySpan = document.createElement('span');
+                    keySpan.className = 'text-[13px] text-indigo-300 font-mono break-all font-medium key-text';
+                    keySpan.textContent = item.key;
+
+                    const badge = document.createElement('span');
+                    badge.className = `status-badge status-${item.status}`;
+                    badge.textContent = item.status === 'equal' ? '=' : 'Diferente';
+                    if(item.status === 'equal') badge.style.display = 'none'; // Ocultar badge si es igual para no saturar
+
+                    header.appendChild(keySpan);
+                    header.appendChild(badge);
+                    row.appendChild(header);
+
+                    // Contenedor de Valores
+                    const valsContainer = document.createElement('div');
+                    valsContainer.className = 'flex flex-col sm:flex-row gap-2 sm:gap-4 mt-1 bg-black/20 p-2 rounded-lg border border-white/5';
+
+                    const v1Formatted = formatValue(item.val1);
+                    const v2Formatted = formatValue(item.val2);
+
+                    if (item.status === 'equal') {
+                        valsContainer.innerHTML = `
+                            <div class="flex-1 flex items-center justify-center gap-2 overflow-hidden bg-white/5 px-2 py-1.5 rounded border border-white/5">
+                                <span class="text-[13px] text-zinc-400 font-mono truncate val-text" title='${v1Formatted}'>${v1Formatted}</span>
+                            </div>
+                        `;
+                    } else if (item.status === 'added') {
+                        valsContainer.innerHTML = `
+                            <div class="flex-1 flex items-center gap-2 overflow-hidden bg-black/30 px-2 py-1.5 rounded border border-white/5 opacity-60 justify-center">
+                                <span class="text-[13px] text-zinc-600 font-mono italic">No presente</span>
+                            </div>
+                            <div class="hidden sm:flex items-center text-zinc-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                            </div>
+                            <div class="flex-1 flex items-center gap-2 overflow-hidden bg-cyan-500/10 px-2 py-1.5 rounded border border-cyan-500/30 justify-center">
+                                <span class="text-[13px] text-cyan-300 font-mono truncate val-text" title='${v2Formatted}'>${v2Formatted}</span>
+                            </div>
+                        `;
+                    } else if (item.status === 'removed') {
+                        valsContainer.innerHTML = `
+                            <div class="flex-1 flex items-center gap-2 overflow-hidden bg-indigo-500/10 px-2 py-1.5 rounded border border-indigo-500/30 justify-center">
+                                <span class="text-[13px] text-indigo-300 font-mono truncate val-text" title='${v1Formatted}'>${v1Formatted}</span>
+                            </div>
+                            <div class="hidden sm:flex items-center text-zinc-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                            </div>
+                            <div class="flex-1 flex items-center gap-2 overflow-hidden bg-black/30 px-2 py-1.5 rounded border border-white/5 opacity-60 justify-center">
+                                <span class="text-[13px] text-zinc-600 font-mono italic">No presente</span>
+                            </div>
+                        `;
+                    } else if (item.status === 'changed') {
+                        valsContainer.innerHTML = `
+                            <div class="flex-1 flex items-center gap-2 overflow-hidden bg-indigo-500/10 px-2 py-1.5 rounded border border-indigo-500/30 justify-center">
+                                <span class="text-[13px] text-indigo-300 font-mono truncate val-text" title='${v1Formatted}'>${v1Formatted}</span>
+                            </div>
+                            <div class="hidden sm:flex items-center text-amber-500/50">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                            </div>
+                            <div class="flex-1 flex items-center gap-2 overflow-hidden bg-cyan-500/10 px-2 py-1.5 rounded border border-cyan-500/30 justify-center">
+                                <span class="text-[13px] text-cyan-300 font-mono truncate val-text" title='${v2Formatted}'>${v2Formatted}</span>
+                            </div>
+                        `;
+                    }
+
+                    row.appendChild(valsContainer);
+                    paramsList.appendChild(row);
+                });
+
+                applyFilters();
+            }
+
+            function applyFilters() {
+                const term = searchInput.value.toLowerCase();
+                const diffOnly = toggleDiffOnly.checked;
+                const rows = document.querySelectorAll('.param-row');
+                
+                rows.forEach(row => {
+                    const key = row.dataset.key.toLowerCase();
+                    const v1 = row.dataset.v1.toLowerCase();
+                    const v2 = row.dataset.v2.toLowerCase();
+                    const status = row.dataset.status;
+
+                    const matchesSearch = term === '' || key.includes(term) || v1.includes(term) || v2.includes(term);
+                    const matchesDiff = !diffOnly || status !== 'equal';
+
+                    if (matchesSearch && matchesDiff) {
+                        row.style.display = 'flex';
+                        
+                        // Opcional: Highlighting visual del texto buscado
+                        const keyEl = row.querySelector('.key-text');
+                        if (term && key.includes(term)) {
+                            const regex = new RegExp(`(${term})`, 'gi');
+                            keyEl.innerHTML = row.dataset.key.replace(regex, '<span class="highlight">$1</span>');
+                        } else {
+                            keyEl.textContent = row.dataset.key;
+                        }
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            }
+
+            function showError(editorNum) {
+                const el = document.querySelector(`#input-editor-${editorNum}`).parentElement;
+                el.style.borderColor = '#ef4444';
+                setTimeout(() => el.style.borderColor = '', 1500);
+            }
+
+            // EVENT LISTENERS
+
+            // Sincronizar Títulos
+            req1Title.addEventListener('input', (e) => col1Name.textContent = e.target.value || 'Request 1');
+            req2Title.addEventListener('input', (e) => col2Name.textContent = e.target.value || 'Request 2');
+
+            // Descargar request formateada
+            function downloadJSON(editor, mode, defaultName, editorNum) {
+                try {
+                    const txt = editor.getValue();
+                    const parsed = parseRequest(txt, mode);
+                    const blob = new Blob([JSON.stringify(parsed, null, 4)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${defaultName.replace(/\s+/g, '_').toLowerCase()}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                } catch(e) {
+                    showError(editorNum);
+                }
+            }
+
+            req1Dl.addEventListener('click', () => downloadJSON(editor1, req1Mode.value, req1Title.value || 'request_1', 1));
+            req2Dl.addEventListener('click', () => downloadJSON(editor2, req2Mode.value, req2Title.value || 'request_2', 2));
+
+            compareBtn.addEventListener('click', () => {
+                const txt1 = editor1.getValue();
+                const txt2 = editor2.getValue();
+                
+                let req1, req2;
+
+                try { req1 = parseRequest(txt1, req1Mode.value); } 
+                catch (e) { showError(1); return; }
+
+                try { req2 = parseRequest(txt2, req2Mode.value); } 
+                catch (e) { showError(2); return; }
+
+                const flat1 = flattenJSON(req1);
+                const flat2 = flattenJSON(req2);
+                
+                currentDiffData = generateDiff(flat1, flat2);
+                renderDiffs(currentDiffData);
+
+                // Animación Botón
+                const originalText = compareBtn.innerHTML;
+                compareBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Análisis Completo`;
+                compareBtn.classList.replace('from-indigo-600', 'from-emerald-600');
+                compareBtn.classList.replace('to-blue-600', 'to-teal-500');
+                
+                setTimeout(() => {
+                    compareBtn.innerHTML = originalText;
+                    compareBtn.classList.replace('from-emerald-600', 'from-indigo-600');
+                    compareBtn.classList.replace('to-teal-500', 'to-blue-600');
+                }, 1500);
+            });
+
+            searchInput.addEventListener('input', applyFilters);
+            
+            toggleDiffOnly.addEventListener('change', (e) => {
+                const dot = e.target.nextElementSibling.nextElementSibling;
+                const bg = e.target.nextElementSibling;
+                if(e.target.checked) {
+                    dot.classList.add('translate-x-4');
+                    bg.classList.replace('bg-zinc-700', 'bg-indigo-500');
+                } else {
+                    dot.classList.remove('translate-x-4');
+                    bg.classList.replace('bg-indigo-500', 'bg-zinc-700');
+                }
+                applyFilters();
+            });
+
+            clearBtn.addEventListener('click', () => {
+                editor1.setValue("", -1);
+                editor2.setValue("", -1);
+                currentDiffData = [];
+                paramsList.innerHTML = '';
+                emptyState.style.display = 'flex';
+                tableHeader.style.display = 'none';
+                searchInput.disabled = true;
+                searchInput.value = '';
+                toggleDiffOnly.disabled = true;
+            });
+
+            // Lógica para el botón "Cargar Ejemplos" inyectando las 2 requests que me diste
+            loadExampleBtn.addEventListener('click', () => {
+                req1Mode.value = 'log';
+                req2Mode.value = 'log';
+                
+                const ex1 = `[\n  {\n    "message": "SSP_PLCM",\n    "log": "{\\"config\\":{\\"BaseInfo\\":{\\"id\\":1306046,\\"name\\":\\"[RON] - Display\\",\\"hash\\":\\"i0Yg39bJNO\\",\\"siteId\\":397738,\\"site\\":\\"webtoon: manga, comics, manhwa\\",\\"siteHash\\":\\"Rxaii1deFl\\",\\"hashPub\\":\\"8DQuYgekqp\\",\\"namePub\\":\\"Mobupps International LTD\\",\\"urlPub\\":\\"mobupps.com\\",\\"pubRel\\":\\"RESELLER\\",\\"pubTF\\":0.2,\\"hsf\\":true,\\"type\\":3,\\"coppa\\":false,\\"alcAllwd\\":true,\\"gamAllwd\\":true,\\"plcmtPrtDeals\\":0,\\"demTypes\\":{\\"nat\\":true,\\"vid\\":true,\\"ign\\":true,\\"vpd\\":false},\\"pbk\\":\\"\\",\\"preBid\\":1,\\"frcSzPrb\\":\\"\\",\\"sf\\":0,\\"ortb\\":1,\\"enbRads\\":true,\\"doNoth\\":1,\\"allowManRef\\":0,\\"plcmtDisc\\":0,\\"cur\\":\\"USD\\",\\"env\\":2,\\"alcExclCtrs\\":null,\\"gamExclCtrs\\":null,\\"mscpm\\":false,\\"isMagic\\":false,\\"mgcHash\\":\\"null\\",\\"maxDur\\":0,\\"skipCrtvsOnly\\":0,\\"intgType\\":1,\\"gamNetCode\\":\\"\\",\\"authDoms\\":[],\\"demSrcsAllwd\\":null,\\"xcf\\":{\\"pub\\":\\"8DQuYgekqp\\",\\"plcmt\\":\\"GENERIC_display_app_8883958\\"},\\"wmcf\\":{\\"pid\\":\\"\\"},\\"hiVidNotAllwd\\":false,\\"odr\\":null,\\"app\\":{\\"bndl\\":\\"894546091\\",\\"wbs\\":\\"\\",\\"mktUrl\\":\\"https://apps.apple.com/us/app/webtoon-manga-comics-manhwa/id894546091?uo=4&at=10l9yE\\",\\"so\\":\\"iOS\\"},\\"ucc\\":false,\\"hbs\\":false,\\"ors\\":false,\\"uob\\":false,\\"mra\\":false,\\"cra\\":false,\\"stz\\":\\"\\",\\"aar\\":4,\\"dealsOnly\\":false,\\"Status\\":0,\\"Mdmc\\":\\"\\",\\"Mdmd\\":\\"\\",\\"BidTransparency\\":\\"\\",\\"DemandSourceSeg\\":null,\\"GIDPosition\\":0,\\"SlidePosition\\":0,\\"CmpIABStandard\\":false,\\"StpListWrapper\\":null,\\"StpListVPAID\\":null},\\"Platforms\\":[1,9,22,40,41,42,46,47,50,58,68,70,72,74,77,109,115,117,118,120,123,124,137,142],\\"PlatformsMap\\":null,\\"SubTypes\\":{\\"Display\\":{\\"All\\":{\\"2\\":{\\"Size\\":\\"728x90\\",\\"HardFloor\\":0},\\"52\\":{\\"Size\\":\\"480x320\\",\\"HardFloor\\":0},\\"51\\":{\\"Size\\":\\"320x480\\",\\"HardFloor\\":0},\\"85\\":{\\"Size\\":\\"980x90\\",\\"HardFloor\\":0},\\"92\\":{\\"Size\\":\\"300x400\\",\\"HardFloor\\":0},\\"252\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"6\\":{\\"Size\\":\\"160x600\\",\\"HardFloor\\":0},\\"4\\":{\\"Size\\":\\"970x250\\",\\"HardFloor\\":0},\\"8\\":{\\"Size\\":\\"468x60\\",\\"HardFloor\\":0},\\"41\\":{\\"Size\\":\\"320x100\\",\\"HardFloor\\":0},\\"54\\":{\\"Size\\":\\"1024x768\\",\\"HardFloor\\":0},\\"3\\":{\\"Size\\":\\"300x600\\",\\"HardFloor\\":0},\\"5\\":{\\"Size\\":\\"970x90\\",\\"HardFloor\\":0},\\"53\\":{\\"Size\\":\\"768x1024\\",\\"HardFloor\\":0},\\"91\\":{\\"Size\\":\\"120x600\\",\\"HardFloor\\":0},\\"210\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"247\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"248\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"7\\":{\\"Size\\":\\"320x50\\",\\"HardFloor\\":0},\\"250\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"251\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"225\\":{\\"Size\\":\\"1080x1920\\",\\"HardFloor\\":0},\\"246\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"249\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"1\\":{\\"Size\\":\\"300x250\\",\\"HardFloor\\":0}},\\"Allow\\":[1,93,94]},\\"Allow\\":[1],\\"HardFloor\\":0},\\"Context\\":{\\"ComScore\\":null,\\"Demographic\\":{\\"sex\\":\\"\\",\\"age\\":null,\\"ic\\":null},\\"IABCategories\\":null,\\"IABCategoriesV1\\":null},\\"Skin\\":{\\"cw\\":0,\\"cc\\":\\"\\",\\"ccdev\\":\\"\\",\\"cid\\":\\"\\",\\"cver\\":\\"\\"},\\"Metrics\\":{\\"igv\\":66.6667,\\"igr\\":0,\\"igd\\":0,\\"lir\\":0,\\"ver\\":0,\\"ctn\\":0,\\"ctr\\":0,\\"vtr\\":0,\\"vwr\\":0,\\"vwa\\":0},\\"Connections\\":[{\\"ID\\":\\"1901\\",\\"Name\\":\\"[NB] - Appnexus\\",\\"Bidder\\":7,\\"PlatformID\\":46,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=appnexus\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,8,41,51,52,53,54,55,56,85,91,92],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"1903\\",\\"Name\\":\\"[NB] - TheTradeDesk\\",\\"Bidder\\":12,\\"PlatformID\\":50,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=thetradedesk\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,8,41,51,52,53,54,55,56,85],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"1935\\",\\"Name\\":\\"[NB] - RAI - Pubmatic - App - Android - Interstitial Landscape\\",\\"Bidder\\":8,\\"PlatformID\\":41,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=pubmatic&ra_cid=156538&ra_sid=327723&ra_pid=2168560\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,52,54,56],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"1937\\",\\"Name\\":\\"[NB] - RAI - Pubmatic - App - iOS - Interstitial Portrait\\",\\"Bidder\\":8,\\"PlatformID\\":41,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=pubmatic&ra_cid=156538&ra_sid=327724&ra_pid=2168563\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,51,53,55],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"1938\\",\\"Name\\":\\"[NB] - RAI - Pubmatic - App - iOS - Interstitial Landscape\\",\\"Bidder\\":8,\\"PlatformID\\":41,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=pubmatic&ra_cid=156538&ra_sid=327724&ra_pid=2168564\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,52,54,56],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"1983\\",\\"Name\\":\\"[NB] - SmartAdServer\\",\\"Bidder\\":9,\\"PlatformID\\":42,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=smartadserver\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,41,51,52,53,54,55,56,85,91],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"1984\\",\\"Name\\":\\"[NB] - Adform\\",\\"Bidder\\":5,\\"PlatformID\\":40,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=adform\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,8,41],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"2030\\",\\"Name\\":\\"[NB] - Equativ\\",\\"Bidder\\":9,\\"PlatformID\\":72,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=equativ\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"2135\\",\\"Name\\":\\"[NB] - RAI - Pubmatic - Mobile - All Sizes\\",\\"Bidder\\":8,\\"PlatformID\\":41,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=pubmatic&ra_cid=156538&ra_sid=327558&ra_pid=7262542\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,8,41,51,52,53,54,55,56,85,91],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"2146\\",\\"Name\\":\\"[NB] - RAS - Pubmatic - Mobile - All Sizes\\",\\"Bidder\\":8,\\"PlatformID\\":1,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=pubmatic&ra_cid=81564&ra_sid=277555&ra_pid=7368437\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,8,41,51,52,53,54,55,56,85,91],\\"DemandType\\":null,\\"DealsOnly\\":false}],\\"Markets\\":[21],\\"SPO\\":{\\"0\\":[{\\"asi\\":\\"richaudience.com\\",\\"sid\\":\\"8DQuYgekqp\\",\\"hp\\":1}],\\"1\\":[{\\"asi\\":\\"richaudience.com\\",\\"sid\\":\\"8DQuYgekqp\\",\\"hp\\":1},{\\"asi\\":\\"sunmedia.tv\\",\\"sid\\":\\"852c0d87-cafc-4bba-a88c-f74cf18086b0\\",\\"hp\\":1}],\\"2\\":[{\\"asi\\":\\"adpone.com\\",\\"sid\\":\\"ef5fa57479271be6f908\\",\\"hp\\":1}]},\\"RADirectLine\\":\\"\\",\\"SPOInfo\\":null,\\"PlatformRates\\":{\\"40\\":{\\"rr\\":1,\\"br\\":0.00011704942,\\"rpm\\":0.0012927142,\\"cpm\\":11.044174},\\"42\\":{\\"rr\\":0.6666667,\\"br\\":0.00035114825,\\"rpm\\":0.00015506531,\\"cpm\\":0.6623925}},\\"ContentTargeting\\":{\\"cgm\\":null,\\"tcm\\":null},\\"SDK\\":null},\\"error\\":null,\\"std-request\\":{\\"id\\":\\"ecea397d-516d-4cad-ad0b-8bb387a911b5\\",\\"imp\\":[{\\"id\\":\\"ecea397d-516d-4cad-ad0b-8bb387a911b5\\",\\"banner\\":{\\"format\\":[{\\"w\\":320,\\"h\\":50}],\\"w\\":320,\\"h\\":50,\\"pos\\":1,\\"api\\":[3,5,6]},\\"displaymanager\\":\\"Nimbus\\",\\"tagid\\":\\"nimbus_static_iphone\\",\\"bidfloor\\":0.91579,\\"bidfloorcur\\":\\"USD\\",\\"secure\\":1,\\"ext\\":{\\"gpid\\":\\"iOSApp_mainmid_banner_320x50\\",\\"skadn\\":{\\"versions\\":[\\"2.0\\",\\"2.1\\",\\"2.2\\",\\"3.0\\",\\"4.0\\"],\\"sourceapp\\":\\"894546091\\",\\"skadnetlist\\":{\\"max\\":100},\\"skoverlay\\":1}}}],\\"app\\":{\\"id\\":\\"9f8b786737718c41b299c80631ed792c\\",\\"name\\":\\"Webtoon\\",\\"bundle\\":\\"894546091\\",\\"domain\\":\\"https://www.webtoons.com\\",\\"storeurl\\":\\"https://apps.apple.com/app/id894546091\\",\\"privacypolicy\\":1,\\"publisher\\":{\\"id\\":\\"c74d97b01eae257e44aa9d5bade97baf33191\\",\\"name\\":\\"navercorporation-webtoon\\",\\"domain\\":\\"webtoons.com\\"},\\"content\\":{\\"userrating\\":\\"4.8\\"}},\\"device\\":{\\"geo\\":{\\"lat\\":43.6165,\\"lon\\":-116.2001,\\"type\\":1,\\"accuracy\\":100,\\"ipservice\\":3,\\"country\\":\\"USA\\",\\"region\\":\\"ID\\",\\"metro\\":\\"0\\",\\"city\\":\\"Boise\\",\\"zip\\":\\"83687\\"},\\"dnt\\":1,\\"lmt\\":1,\\"ua\\":\\"Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148\\",\\"ip\\":\\"172.56.150.160\\",\\"devicetype\\":4,\\"make\\":\\"Apple\\",\\"model\\":\\"iPhone\\",\\"os\\":\\"ios\\",\\"osv\\":\\"18.7\\",\\"h\\":2868,\\"w\\":1320,\\"language\\":\\"en\\",\\"carrier\\":\\"T-Mobile USA\\",\\"connectiontype\\":2,\\"ifa\\":\\"00000000-0000-0000-0000-000000000000\\",\\"ext\\":{\\"atts\\":2,\\"ifv\\":\\"6B4D4886-63AC-4145-BAD4-D336F018D1E7\\",\\"sua\\":{\\"mobile\\":1,\\"model\\":\\"iPhone\\",\\"source\\":3,\\"browsers\\":[{\\"brand\\":\\"WebKit\\",\\"version\\":[\\"605.1.15\\"]}],\\"platform\\":{\\"brand\\":\\"iOS\\",\\"version\\":[\\"18.7\\"]}}}},\\"user\\":{\\"geo\\":{\\"lat\\":43.5951,\\"lon\\":-116.5312,\\"type\\":2,\\"accuracy\\":100,\\"ipservice\\":3,\\"country\\":\\"USA\\",\\"region\\":\\"ID\\",\\"city\\":\\"Nampa\\",\\"zip\\":\\"83687\\"}},\\"at\\":1,\\"tmax\\":457,\\"cur\\":[\\"USD\\"],\\"bcat\\":[\\"IAB7-39\\",\\"IAB7-42\\",\\"IAB25-2\\",\\"IAB25-3\\",\\"IAB25-4\\",\\"IAB26\\",\\"IAB26-1\\",\\"IAB26-2\\",\\"IAB26-3\\",\\"IAB26-4\\"],\\"source\\":{\\"tid\\":\\"ecea397d-516d-4cad-ad0b-8bb387a911b5/adsbynimbus\\",\\"schain\\":{\\"complete\\":1,\\"nodes\\":[{\\"asi\\":\\"mobupps.com\\",\\"sid\\":\\"c74d97b01eae257e44aa9d5bade97baf33191\\",\\"rid\\":\\"ecea397d-516d-4cad-ad0b-8bb387a911b5\\",\\"hp\\":1}],\\"ver\\":\\"1.0\\"}},\\"regs\\":{\\"gdpr\\":0},\\"exteinfo\\":{\\"device\\":{\\"type\\":2,\\"browser\\":\\"Safari\\",\\"os\\":\\"iOS\\",\\"headip\\":\\"96.46.188.44\\",\\"atts\\":2},\\"geo\\":{\\"country\\":\\"US\\",\\"countryiso3\\":\\"USA\\",\\"continent\\":\\"NA\\",\\"cityid\\":5601933,\\"cityname\\":\\"Nampa\\",\\"timezone\\":\\"America/Boise\\",\\"sub1\\":\\"ID\\",\\"zip\\":\\"83687\\",\\"lat\\":43.5951,\\"lon\\":-116.5312,\\"accuracy\\":100},\\"gpm\\":\\"8DQuYgekqp\\",\\"user\\":{},\\"publisherintegration\\":2,\\"visitId\\":\\"ae810a17-1b17-4858-9f71-5212db06ab33\\",\\"auid\\":\\"iOSApp_mainmid_banner_320x50\\",\\"gpid\\":\\"iOSApp_mainmid_banner_320x50\\"}}}"
+  },
+  [
+    {
+      "message": "SSP_REQ",
+      "log": "{\\"id\\":\\"ecea397d-516d-4cad-ad0b-8bb387a911b5\\",\\"imp\\":[{\\"id\\":\\"ecea397d-516d-4cad-ad0b-8bb387a911b5\\",\\"banner\\":{\\"w\\":320,\\"h\\":50,\\"pos\\":1,\\"api\\":[3,5,6],\\"format\\":[{\\"w\\":320,\\"h\\":50}],\\"battr\\":[]},\\"displaymanager\\":\\"Nimbus\\",\\"instl\\":0,\\"tagid\\":\\"nimbus_static_iphone\\",\\"bidfloor\\":0.91579,\\"secure\\":1,\\"ext\\":{\\"gpid\\":\\"iOSApp_mainmid_banner_320x50\\",\\"skadn\\":{\\"versions\\":[\\"2.0\\",\\"2.1\\",\\"2.2\\",\\"3.0\\",\\"4.0\\"],\\"sourceapp\\":\\"894546091\\",\\"skadnetlist\\":{\\"max\\":100},\\"skoverlay\\":1}},\\"bidfloorcur\\":\\"USD\\"}],\\"app\\":{\\"id\\":\\"9f8b786737718c41b299c80631ed792c\\",\\"name\\":\\"Webtoon\\",\\"bundle\\":\\"894546091\\",\\"domain\\":\\"https://www.webtoons.com\\",\\"storeurl\\":\\"https://apps.apple.com/app/id894546091\\",\\"privacypolicy\\":1,\\"publisher\\":{\\"id\\":\\"c74d97b01eae257e44aa9d5bade97baf33191\\",\\"name\\":\\"navercorporation-webtoon\\",\\"domain\\":\\"webtoons.com\\"},\\"content\\":{\\"userrating\\":\\"4.8\\"},\\"cat\\":[]},\\"cur\\":[\\"USD\\"],\\"device\\":{\\"ua\\":\\"Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148\\",\\"geo\\":{\\"lat\\":43.6165,\\"lon\\":-116.2001,\\"type\\":1,\\"ipservice\\":3,\\"country\\":\\"USA\\",\\"city\\":\\"Boise\\",\\"metro\\":\\"0\\",\\"region\\":\\"ID\\"},\\"dnt\\":1,\\"lmt\\":1,\\"ip\\":\\"172.56.150.160\\",\\"devicetype\\":4,\\"make\\":\\"Apple\\",\\"model\\":\\"iPhone\\",\\"os\\":\\"ios\\",\\"osv\\":\\"18.7\\",\\"h\\":2868,\\"w\\":1320,\\"language\\":\\"en\\",\\"connectiontype\\":2,\\"ifa\\":\\"00000000-0000-0000-0000-000000000000\\",\\"ext\\":{\\"atts\\":2,\\"ifv\\":\\"6B4D4886-63AC-4145-BAD4-D336F018D1E7\\",\\"sua\\":{\\"mobile\\":1,\\"model\\":\\"iPhone\\",\\"source\\":3,\\"browsers\\":[{\\"brand\\":\\"WebKit\\",\\"version\\":[\\"605.1.15\\"]}],\\"platform\\":{\\"brand\\":\\"iOS\\",\\"version\\":[\\"18.7\\"]}}},\\"carrier\\":\\"T-Mobile USA\\"},\\"at\\":1,\\"tmax\\":457,\\"source\\":{\\"tid\\":\\"ecea397d-516d-4cad-ad0b-8bb387a911b5/adsbynimbus\\",\\"ext\\":{\\"schain\\":{\\"ver\\":\\"1.0\\",\\"complete\\":1,\\"nodes\\":[{\\"asi\\":\\"mobupps.com\\",\\"sid\\":\\"c74d97b01eae257e44aa9d5bade97baf33191\\",\\"rid\\":\\"ecea397d-516d-4cad-ad0b-8bb387a911b5\\",\\"hp\\":1}]}}},\\"regs\\":{\\"coppa\\":0,\\"gdpr\\":0,\\"ext\\":{\\"gdpr\\":0}},\\"bcat\\":[\\"IAB7-39\\",\\"IAB7-42\\",\\"IAB25-2\\",\\"IAB25-3\\",\\"IAB25-4\\",\\"IAB26\\",\\"IAB26-1\\",\\"IAB26-2\\",\\"IAB26-3\\",\\"IAB26-4\\"],\\"badv\\":[],\\"user\\":{\\"ext\\":{\\"consent\\":\\"\\"}}}"
+    },
+    {
+      "message": "SSP_RESP",
+      "log": "{\\"id\\":\\"\\",\\"seatbid\\":null,\\"cur\\":\\"\\"}"
+    }
+  ]
+]`;
+
+                const ex2 = `[\n  {\n    "message": "SSP_PLCM",\n    "log": "{\\"config\\":{\\"BaseInfo\\":{\\"id\\":1225080,\\"name\\":\\"[RON] - Display\\",\\"hash\\":\\"riuP7SLoLj\\",\\"siteId\\":365753,\\"site\\":\\"arrow out\\",\\"siteHash\\":\\"NSb5DYAneb\\",\\"hashPub\\":\\"1tEuljipuA\\",\\"namePub\\":\\"SpinX PTE LTD\\",\\"urlPub\\":\\"spinx.io\\",\\"pubRel\\":\\"BOTH\\",\\"pubTF\\":0.2,\\"hsf\\":true,\\"type\\":3,\\"coppa\\":false,\\"alcAllwd\\":true,\\"gamAllwd\\":true,\\"plcmtPrtDeals\\":0,\\"demTypes\\":{\\"nat\\":true,\\"vid\\":true,\\"ign\\":true,\\"vpd\\":false},\\"pbk\\":\\"\\",\\"preBid\\":1,\\"frcSzPrb\\":\\"\\",\\"sf\\":0,\\"ortb\\":1,\\"enbRads\\":true,\\"doNoth\\":1,\\"allowManRef\\":0,\\"plcmtDisc\\":0,\\"cur\\":\\"USD\\",\\"env\\":2,\\"alcExclCtrs\\":null,\\"gamExclCtrs\\":null,\\"mscpm\\":false,\\"isMagic\\":false,\\"mgcHash\\":\\"null\\",\\"maxDur\\":0,\\"skipCrtvsOnly\\":0,\\"intgType\\":1,\\"gamNetCode\\":\\"\\",\\"authDoms\\":[],\\"demSrcsAllwd\\":null,\\"xcf\\":{\\"pub\\":\\"1tEuljipuA\\",\\"plcmt\\":\\"GENERIC_display_app_8945751\\"},\\"wmcf\\":{\\"pid\\":\\"\\"},\\"hiVidNotAllwd\\":false,\\"odr\\":null,\\"app\\":{\\"bndl\\":\\"com.arrow.out\\",\\"wbs\\":\\"\\",\\"mktUrl\\":\\"https://play.google.com/store/apps/details?id=com.arrow.out&referrer=utm_source%3D42matters.com%26utm_medium%3Dapi\\",\\"so\\":\\"Android\\"},\\"ucc\\":false,\\"hbs\\":false,\\"ors\\":false,\\"uob\\":false,\\"mra\\":false,\\"cra\\":false,\\"stz\\":\\"\\",\\"aar\\":4,\\"dealsOnly\\":false,\\"Status\\":0,\\"Mdmc\\":\\"\\",\\"Mdmd\\":\\"\\",\\"BidTransparency\\":\\"\\",\\"DemandSourceSeg\\":null,\\"GIDPosition\\":0,\\"SlidePosition\\":0,\\"CmpIABStandard\\":false,\\"StpListWrapper\\":null,\\"StpListVPAID\\":null},\\"Platforms\\":[1,9,22,38,40,41,42,46,47,50,58,68,70,72,74,77,109,115,117,118,120,123,124,137,142],\\"PlatformsMap\\":null,\\"SubTypes\\":{\\"Display\\":{\\"All\\":{\\"251\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"51\\":{\\"Size\\":\\"320x480\\",\\"HardFloor\\":0},\\"52\\":{\\"Size\\":\\"480x320\\",\\"HardFloor\\":0},\\"210\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"247\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"3\\":{\\"Size\\":\\"300x600\\",\\"HardFloor\\":0},\\"225\\":{\\"Size\\":\\"1080x1920\\",\\"HardFloor\\":0},\\"41\\":{\\"Size\\":\\"320x100\\",\\"HardFloor\\":0},\\"4\\":{\\"Size\\":\\"970x250\\",\\"HardFloor\\":0},\\"250\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"252\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"246\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"54\\":{\\"Size\\":\\"1024x768\\",\\"HardFloor\\":0},\\"248\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"2\\":{\\"Size\\":\\"728x90\\",\\"HardFloor\\":0},\\"85\\":{\\"Size\\":\\"980x90\\",\\"HardFloor\\":0},\\"249\\":{\\"Size\\":\\"\\",\\"HardFloor\\":0},\\"6\\":{\\"Size\\":\\"160x600\\",\\"HardFloor\\":0},\\"53\\":{\\"Size\\":\\"768x1024\\",\\"HardFloor\\":0},\\"5\\":{\\"Size\\":\\"970x90\\",\\"HardFloor\\":0},\\"7\\":{\\"Size\\":\\"320x50\\",\\"HardFloor\\":0},\\"1\\":{\\"Size\\":\\"300x250\\",\\"HardFloor\\":0},\\"91\\":{\\"Size\\":\\"120x600\\",\\"HardFloor\\":0},\\"92\\":{\\"Size\\":\\"300x400\\",\\"HardFloor\\":0},\\"8\\":{\\"Size\\":\\"468x60\\",\\"HardFloor\\":0}},\\"Allow\\":[1,93,94]},\\"Allow\\":[1],\\"HardFloor\\":0},\\"Context\\":{\\"ComScore\\":null,\\"Demographic\\":{\\"sex\\":\\"\\",\\"age\\":null,\\"ic\\":null},\\"IABCategories\\":null,\\"IABCategoriesV1\\":null},\\"Skin\\":{\\"cw\\":0,\\"cc\\":\\"\\",\\"ccdev\\":\\"\\",\\"cid\\":\\"\\",\\"cver\\":\\"\\"},\\"Metrics\\":{\\"igv\\":70.1524,\\"igr\\":0,\\"igd\\":0,\\"lir\\":0.99597865,\\"ver\\":0.99526274,\\"ctn\\":0.04,\\"ctr\\":0.04,\\"vtr\\":0,\\"vwr\\":90,\\"vwa\\":94},\\"Connections\\":[{\\"ID\\":\\"1887\\",\\"Name\\":\\"[NB] - Rubicon Project\\",\\"Bidder\\":3,\\"PlatformID\\":38,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=rubicon\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,8,41,51,52,53,54,55,56,91,85,92,246,247,248,250,251,252],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"1901\\",\\"Name\\":\\"[NB] - Appnexus\\",\\"Bidder\\":7,\\"PlatformID\\":46,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=appnexus\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,8,41,51,52,53,54,55,56,85,91,92],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"1903\\",\\"Name\\":\\"[NB] - TheTradeDesk\\",\\"Bidder\\":12,\\"PlatformID\\":50,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=thetradedesk\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,8,41,51,52,53,54,55,56,85],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"1983\\",\\"Name\\":\\"[NB] - SmartAdServer\\",\\"Bidder\\":9,\\"PlatformID\\":42,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=smartadserver\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,41,51,52,53,54,55,56,85,91],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"1984\\",\\"Name\\":\\"[NB] - Adform\\",\\"Bidder\\":5,\\"PlatformID\\":40,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=adform\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,8,41],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"2030\\",\\"Name\\":\\"[NB] - Equativ\\",\\"Bidder\\":9,\\"PlatformID\\":72,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=equativ\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"2135\\",\\"Name\\":\\"[NB] - RAI - Pubmatic - Mobile - All Sizes\\",\\"Bidder\\":8,\\"PlatformID\\":41,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=pubmatic&ra_cid=156538&ra_sid=327558&ra_pid=7262542\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,8,41,51,52,53,54,55,56,85,91],\\"DemandType\\":null,\\"DealsOnly\\":false},{\\"ID\\":\\"2146\\",\\"Name\\":\\"[NB] - RAS - Pubmatic - Mobile - All Sizes\\",\\"Bidder\\":8,\\"PlatformID\\":1,\\"Endpoint\\":\\"http://bidding.richaudience.bid/1.0/?plat=pubmatic&ra_cid=81564&ra_sid=277555&ra_pid=7368437\\",\\"NoWrap\\":false,\\"Priority\\":50,\\"AllowDisplayFormatIDs\\":[1,2,3,4,5,6,7,8,41,51,52,53,54,55,56,85,91],\\"DemandType\\":null,\\"DealsOnly\\":false}],\\"Markets\\":[21],\\"SPO\\":{\\"0\\":[{\\"asi\\":\\"richaudience.com\\",\\"sid\\":\\"1tEuljipuA\\",\\"hp\\":1}],\\"1\\":[{\\"asi\\":\\"richaudience.com\\",\\"sid\\":\\"1tEuljipuA\\",\\"hp\\":1},{\\"asi\\":\\"sunmedia.tv\\",\\"sid\\":\\"852c0d87-cafc-4bba-a88c-f74cf18086b0\\",\\"hp\\":1}],\\"2\\":[{\\"asi\\":\\"richaudience.com\\",\\"sid\\":\\"1tEuljipuA\\",\\"hp\\":1},{\\"asi\\":\\"adpone.com\\",\\"sid\\":\\"1813bfe577448f6ef478\\",\\"hp\\":1}]},\\"RADirectLine\\":\\"\\",\\"SPOInfo\\":null,\\"PlatformRates\\":{\\"38\\":{\\"rr\\":0.13333334,\\"br\\":0.00011894413,\\"rpm\\":0.0000083407585,\\"cpm\\":0.525925},\\"40\\":{\\"rr\\":0.71428573,\\"br\\":0.000097637945,\\"rpm\\":0.00008999531,\\"cpm\\":1.2904147},\\"41\\":{\\"rr\\":0.1849315,\\"br\\":0.013245898,\\"rpm\\":0.0016750018,\\"cpm\\":0.6837903},\\"42\\":{\\"rr\\":1,\\"br\\":0.000009906232,\\"rpm\\":5.408109e-7,\\"cpm\\":0.054593},\\"46\\":{\\"rr\\":0.25,\\"br\\":0.00038783785,\\"rpm\\":0.00015075377,\\"cpm\\":1.5548123},\\"1\\":{\\"rr\\":0.25480768,\\"br\\":0.01887087,\\"rpm\\":0.004324856,\\"cpm\\":0.89942974}},\\"ContentTargeting\\":{\\"cgm\\":null,\\"tcm\\":null},\\"SDK\\":null},\\"error\\":null,\\"std-request\\":{\\"id\\":\\"ebca210d00000000bf6e807995f8f0a7\\",\\"imp\\":[{\\"id\\":\\"49cb210d-0000-0000-bf6e-807995f8f0a7\\",\\"metric\\":[{\\"type\\":\\"click_through_rate\\",\\"value\\":0.00237,\\"vendor\\":\\"EXCHANGE\\"}],\\"banner\\":{\\"format\\":[{\\"w\\":320,\\"h\\":50},{\\"w\\":300,\\"h\\":50}],\\"w\\":320,\\"h\\":50,\\"battr\\":[3,4],\\"api\\":[3,5,6,7]},\\"displaymanager\\":\\"Spinx\\",\\"displaymanagerver\\":\\"1.0.0\\",\\"tagid\\":\\"e98b471e-5922-4803-ad82-d51a3b4b6b9f\\",\\"bidfloor\\":0.1377048,\\"bidfloorcur\\":\\"USD\\",\\"secure\\":1,\\"ext\\":{\\"metric\\":[{\\"type\\":\\"click_through_rate\\",\\"value\\":0.00237,\\"vendor\\":\\"EXCHANGE\\"}],\\"gpid\\":\\"e98b471e-5922-4803-ad82-d51a3b4b6b9f\\"}}],\\"app\\":{\\"id\\":\\"4497633\\",\\"name\\":\\"Point Out: Color Escape Puzzle\\",\\"bundle\\":\\"com.arrow.out\\",\\"storeurl\\":\\"https://play.google.com/store/apps/details?id=com.arrow.out\\",\\"cat\\":[\\"IAB9\\"],\\"ver\\":\\"1.8.1\\",\\"publisher\\":{\\"id\\":\\"1009277\\",\\"name\\":\\"Lion Studios Plus\\"},\\"keywords\\":\\"GamePuzzle;\\",\\"ext\\":{\\"inventorypartnerdomain\\":\\"\\"}},\\"device\\":{\\"geo\\":{\\"lat\\":52.0845,\\"lon\\":-2.2156,\\"type\\":2,\\"accuracy\\":20,\\"ipservice\\":3,\\"country\\":\\"GBR\\",\\"region\\":\\"GB-DEV\\",\\"city\\":\\"Tiverton\\",\\"zip\\":\\"EX16\\",\\"ext\\":{\\"isp\\":\\"Airband Community Internet\\",\\"org\\":\\"Airband Community Internet\\"}},\\"dnt\\":1,\\"ua\\":\\"Mozilla/5.0 (Linux; Android 16; SM-A176B Build/BP4A.251205.006; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/152.0.7977.87 Mobile Safari/537.36\\",\\"ip\\":\\"193.223.70.0\\",\\"devicetype\\":4,\\"make\\":\\"samsung\\",\\"model\\":\\"SM-A176B\\",\\"os\\":\\"android\\",\\"osv\\":\\"16\\",\\"h\\":832,\\"w\\":384,\\"pxratio\\":5.625,\\"language\\":\\"en\\",\\"carrier\\":\\"O2 - UK\\",\\"connectiontype\\":2,\\"ext\\":{}},\\"user\\":{\\"geo\\":{\\"lat\\":52.0845,\\"lon\\":-2.2156,\\"type\\":2,\\"accuracy\\":20,\\"ipservice\\":3,\\"country\\":\\"GBR\\",\\"region\\":\\"ENG\\",\\"city\\":\\"Worcester\\",\\"zip\\":\\"WR8\\"},\\"consent\\":\\"CQgv1gAQgv1gAEsACCENCVFgAAAAAAAAACiQAAAX4SD-F-a2lKHkWCuw3YIcBCuj-AAxYhgAA2CBsACmDUgQBgFJsIkCJEAIEAAEgAAQMiCQABQEBAAAIACAAAqQAGIABggQCAQAICBACIChIAAAIAEEQAAIgEQAACIaIABEhAJAQQAkCAAAAAEQAFCAAgAgCAAAAAAABAAAAIAIEABgAAAAQCBEAAAAAAAACIQIJAAAAgAAEAACBAAAAAAAAgAAAAiACAAAAAA4AAAgBAADIAAAAAEiAAAAAAAAAAACAAA.IL8JB_C_NbSlDyLZ3absEeAhXR_BAYsQwAAbBA2ABTBqQIBwCk2EaFEyAFCACCQAAKGTBIQJsCAgAAUABIAAVIADEAAwQIBAIIEBAgBEBQkAICEACCIAAEQCIAABENEAAmQgEgIIASBAAgAACIAChAAQAQBAAAACAAAgABAEAESAAwAAAAYBAiAAAAAAAABEIEEgAAgQAACAABAgAAAAAAA4AAAARABAAABAAcAAAQQgABkAAAAACRAAAAAQAAAAABA\\"},\\"at\\":1,\\"tmax\\":420,\\"cur\\":[\\"USD\\"],\\"bcat\\":[\\"IAB24\\",\\"IAB11\\",\\"IAB11-4\\",\\"IAB9-7\\"],\\"badv\\":[\\"minicoin.one\\"],\\"source\\":{\\"schain\\":{\\"complete\\":1,\\"nodes\\":[{\\"asi\\":\\"spinx.biz\\",\\"sid\\":\\"1373698927\\",\\"hp\\":1}],\\"ver\\":\\"1.0\\"}},\\"regs\\":{\\"gdpr\\":1},\\"exteinfo\\":{\\"device\\":{\\"type\\":2,\\"browser\\":\\"Chrome\\",\\"os\\":\\"Android\\",\\"headip\\":\\"201.79.0.180\\"},\\"geo\\":{\\"country\\":\\"GB\\",\\"countryiso3\\":\\"GBR\\",\\"continent\\":\\"EU\\",\\"cityid\\":2633563,\\"cityname\\":\\"Worcester\\",\\"timezone\\":\\"Europe/London\\",\\"sub1\\":\\"ENG\\",\\"sub2\\":\\"WOR\\",\\"zip\\":\\"WR8\\",\\"lat\\":52.0845,\\"lon\\":-2.2156,\\"accuracy\\":20},\\"gpm\\":\\"1tEuljipuA\\",\\"user\\":{},\\"publisherintegration\\":2,\\"visitId\\":\\"726ac024-2834-444e-b03b-7fa4f9ce4486\\",\\"auid\\":\\"e98b471e-5922-4803-ad82-d51a3b4b6b9f\\",\\"gpid\\":\\"e98b471e-5922-4803-ad82-d51a3b4b6b9f\\"}}}"
+  },
+  [
+    {
+      "message": "SSP_REQ",
+      "log": "{\\"id\\":\\"ebca210d00000000bf6e807995f8f0a7\\",\\"imp\\":[{\\"id\\":\\"49cb210d-0000-0000-bf6e-807995f8f0a7\\",\\"metric\\":[{\\"type\\":\\"click_through_rate\\",\\"value\\":0.00237,\\"vendor\\":\\"EXCHANGE\\"}],\\"banner\\":{\\"w\\":320,\\"h\\":50,\\"battr\\":[3,4],\\"api\\":[3,5,6,7],\\"format\\":[{\\"w\\":320,\\"h\\":50},{\\"w\\":300,\\"h\\":50}]},\\"displaymanager\\":\\"Spinx\\",\\"displaymanagerver\\":\\"1.0.0\\",\\"instl\\":0,\\"tagid\\":\\"e98b471e-5922-4803-ad82-d51a3b4b6b9f\\",\\"bidfloor\\":0.1377048,\\"bidfloorcur\\":\\"USD\\",\\"secure\\":1,\\"ext\\":{\\"metric\\":[{\\"type\\":\\"click_through_rate\\",\\"value\\":0.00237,\\"vendor\\":\\"EXCHANGE\\"}],\\"gpid\\":\\"e98b471e-5922-4803-ad82-d51a3b4b6b9f\\"}}],\\"app\\":{\\"id\\":\\"4497633\\",\\"name\\":\\"Point Out: Color Escape Puzzle\\",\\"cat\\":[\\"IAB9\\"],\\"ver\\":\\"1.8.1\\",\\"bundle\\":\\"com.arrow.out\\",\\"publisher\\":{\\"id\\":\\"1009277\\",\\"name\\":\\"Lion Studios Plus\\"},\\"keywords\\":\\"GamePuzzle,\\",\\"storeurl\\":\\"https://play.google.com/store/apps/details?id=com.arrow.out\\",\\"ext\\":{\\"inventorypartnerdomain\\":\\"\\"}},\\"device\\":{\\"dnt\\":1,\\"ua\\":\\"Mozilla/5.0 (Linux; Android 16; SM-A176B Build/BP4A.251205.006; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/152.0.7977.87 Mobile Safari/537.36\\",\\"ip\\":\\"193.223.70.0\\",\\"geo\\":{\\"country\\":\\"GBR\\",\\"region\\":\\"GB-DEV\\",\\"city\\":\\"Tiverton\\",\\"zip\\":\\"EX16\\",\\"ext\\":{\\"isp\\":\\"Airband Community Internet\\",\\"org\\":\\"Airband Community Internet\\"}},\\"carrier\\":\\"O2 - UK\\",\\"language\\":\\"en\\",\\"make\\":\\"samsung\\",\\"model\\":\\"SM-A176B\\",\\"os\\":\\"android\\",\\"osv\\":\\"16\\",\\"pxratio\\":5.625,\\"h\\":832,\\"w\\":384,\\"connectiontype\\":2,\\"devicetype\\":4,\\"ext\\":{}},\\"user\\":{\\"ext\\":{\\"consent\\":\\"CQgv1gAQgv1gAEsACCENCVFgAAAAAAAAACiQAAAX4SD-F-a2lKHkWCuw3YIcBCuj-AAxYhgAA2CBsACmDUgQBgFJsIkCJEAIEAAEgAAQMiCQABQEBAAAIACAAAqQAGIABggQCAQAICBACIChIAAAIAEEQAAIgEQAACIaIABEhAJAQQAkCAAAAAEQAFCAAgAgCAAAAAAABAAAAIAIEABgAAAAQCBEAAAAAAAACIQIJAAAAgAAEAACBAAAAAAAAgAAAAiACAAAAAA4AAAgBAADIAAAAAEiAAAAAAAAAAACAAA.IL8JB_C_NbSlDyLZ3absEeAhXR_BAYsQwAAbBA2ABTBqQIBwCk2EaFEyAFCACCQAAKGTBIQJsCAgAAUABIAAVIADEAAwQIBAIIEBAgBEBQkAICEACCIAAEQCIAABENEAAmQgEgIIASBAAgAACIAChAAQAQBAAAACAAAgABAEAESAAwAAAAYBAiAAAAAAAABEIEEgAAgQAACAABAgAAAAAAA4AAAARABAAABAAcAAAQQgABkAAAAACRAAAAAQAAAAABA\\"}},\\"test\\":0,\\"at\\":1,\\"tmax\\":420,\\"cur\\":[\\"USD\\"],\\"bcat\\":[\\"IAB24\\",\\"IAB11\\",\\"IAB11-4\\",\\"IAB9-7\\"],\\"source\\":{\\"ext\\":{\\"schain\\":{\\"complete\\":1,\\"ver\\":\\"1.0\\",\\"nodes\\":[{\\"asi\\":\\"spinx.biz\\",\\"sid\\":\\"1373698927\\",\\"hp\\":1}]}}},\\"regs\\":{\\"ext\\":{\\"gdpr\\":1,\\"consent\\":\\"CQgv1gAQgv1gAEsACCENCVFgAAAAAAAAACiQAAAX4SD-F-a2lKHkWCuw3YIcBCuj-AAxYhgAA2CBsACmDUgQBgFJsIkCJEAIEAAEgAAQMiCQABQEBAAAIACAAAqQAGIABggQCAQAICBACIChIAAAIAEEQAAIgEQAACIaIABEhAJAQQAkCAAAAAEQAFCAAgAgCAAAAAAABAAAAIAIEABgAAAAQCBEAAAAAAAACIQIJAAAAgAAEAACBAAAAAAAAgAAAAiACAAAAAA4AAAgBAADIAAAAAEiAAAAAAAAAAACAAA.IL8JB_C_NbSlDyLZ3absEeAhXR_BAYsQwAAbBA2ABTBqQIBwCk2EaFEyAFCACCQAAKGTBIQJsCAgAAUABIAAVIADEAAwQIBAIIEBAgBEBQkAICEACCIAAEQCIAABENEAAmQgEgIIASBAAgAACIAChAAQAQBAAAACAAAgABAEAESAAwAAAAYBAiAAAAAAAABEIEEgAAgQAACAABAgAAAAAAA4AAAARABAAABAAcAAAQQgABkAAAAACRAAAAAQAAAAABA\\"}},\\"ext\\":{\\"ivt_check\\":{\\"pre_check\\":true,\\"invalid_traffic\\":false,\\"fraud_app\\":false,\\"fraud_site\\":false,\\"post_bid_ivt\\":false,\\"type\\":\\"Production\\",\\"pass\\":true}},\\"badv\\":[\\"minicoin.one\\"]}"
+    },
+    {
+      "message": "SSP_RESP",
+      "log": "{\\"id\\":\\"\\",\\"seatbid\\":null,\\"cur\\":\\"\\"}"
+    }
+  ]
+]`;
+
+                editor1.setValue(ex1, -1);
+                editor2.setValue(ex2, -1);
+            });
+        });
+    </script>
+</body>
+</html>
