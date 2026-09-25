@@ -3,167 +3,235 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SSP_REQ Diff Inspector</title>
+    <title>PSM Tool</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&family=Inria+Serif:ital,wght@1,400;1,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
 
-    <style>
-        :root {
-            --bg-base: #09090b; /* Zinc 950 */
-            --bg-panel: #18181b; /* Zinc 900 */
-            --border-color: rgba(255, 255, 255, 0.08);
-            --accent-glow: rgba(99, 102, 241, 0.4);
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ink: '#1B043F',
+                        muted: '#5B5773',
+                        line: '#D3DCF2',
+                        canvas: '#F5F7FC',
+                        primary: '#FF4F00',
+                        primaryHover: '#E04500',
+                        grape: '#611BC5',
+                        grapeHover: '#4E139F',
+                        info: '#0066FF',
+                        accent: '#F971FF',
+                        ok: '#0F8A5F',
+                        warn: '#B86E00',
+                        danger: '#D6283B',
+                        okBg: '#E3F4EC',
+                        warnBg: '#FFF3DC',
+                        dangerBg: '#FCE6E8',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                        serif: ['Inria Serif', 'serif'],
+                    }
+                }
+            }
         }
+    </script>
 
+    <style>
         body {
+            background-color: #F5F7FC;
+            color: #1B043F;
             font-family: 'Inter', sans-serif;
-            background-color: var(--bg-base); 
-            color: #e4e4e7;
-            background-image: linear-gradient(var(--border-color) 1px, transparent 1px),
-                              linear-gradient(90deg, var(--border-color) 1px, transparent 1px);
-            background-size: 40px 40px;
-            background-position: -1px -1px;
-        }
-        
-        .glass-panel {
-            background: rgba(24, 24, 27, 0.7);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid var(--border-color);
+            -webkit-font-smoothing: antialiased;
         }
 
         .editor-container {
-            border-radius: 0.75rem;
+            border: 1px solid #D3DCF2;
+            border-radius: 8px;
             overflow: hidden;
-            border: 1px solid var(--border-color); 
-            background-color: var(--bg-panel);
-            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
-            transition: border-color 0.3s ease;
+            background: #fff;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
         
         .editor-container:focus-within {
-            border-color: rgba(99, 102, 241, 0.5); 
+            border-color: #611BC5;
+            box-shadow: 0 0 0 3px rgba(97,27,197,0.1);
         }
 
-        /* Ajuste para que todos los editores hereden ACE */
-        .ace_editor { background-color: transparent !important; width: 100%; height: 100%; min-height: 180px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5; }
-        .ace_gutter { background-color: rgba(0, 0, 0, 0.2) !important; color: #52525b !important; border-right: 1px solid var(--border-color); }
-        .ace_scroller { box-shadow: inset 10px 0 10px -10px rgba(0,0,0,0.3); }
+        .ace_editor { background-color: #fff !important; width: 100%; height: 100%; min-height: 200px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5; }
+        .ace_gutter { background-color: #F5F7FC !important; color: #5B5773 !important; border-right: 1px solid #D3DCF2; }
 
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+        ::-webkit-scrollbar-thumb { background: #D3DCF2; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #5B5773; }
 
-        .param-card { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        .param-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -4px rgba(0,0,0,0.5), 0 0 10px 0 var(--accent-glow); background-color: #1f1f22; }
+        .param-row { border-bottom: 1px solid #D3DCF2; }
+        .param-row:last-child { border-bottom: none; }
+        .param-row:hover { background-color: #F5F7FC; }
 
-        .btn-glow { transition: all 0.3s ease; }
-        .btn-glow:hover:not(:disabled) { box-shadow: 0 0 20px -5px var(--accent-glow); transform: translateY(-1px); }
-        .btn-glow:active:not(:disabled) { transform: translateY(1px); }
-        
-        #params-list { overflow-x: hidden; }
+        .btn-base {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            transition: all 0.2s;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
 
-        .status-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-        .status-changed { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-        
-        .highlight { background-color: rgba(99, 102, 241, 0.5); color: white; padding: 0 2px; border-radius: 2px; }
+        .btn-primary { background: #FF4F00; color: #fff; border: none; }
+        .btn-primary:hover:not(:disabled) { background: #E04500; }
+        .btn-secondary { background: #fff; color: #1B043F; border: 1px solid #D3DCF2; }
+        .btn-secondary:hover:not(:disabled) { border-color: #611BC5; color: #611BC5; }
+        .btn-danger { background: #FCE6E8; color: #D6283B; border: none; }
+        .btn-danger:hover:not(:disabled) { background: #F8D0D4; }
+        .btn-ghost { background: transparent; color: #611BC5; border: none; padding: 4px 8px; }
+        .btn-ghost:hover:not(:disabled) { color: #4E139F; text-decoration: underline; }
+
+        .input-base {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #D3DCF2;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            color: #1B043F;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .input-base:focus {
+            border-color: #611BC5;
+            box-shadow: 0 0 0 3px rgba(97,27,197,0.15);
+        }
+
+        .badge {
+            font-size: 12px;
+            font-weight: 500;
+            padding: 2px 8px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .toggle-switch {
+            width: 40px; height: 24px; border-radius: 999px; border: none; padding: 2px; cursor: pointer; display: flex; transition: all 0.3s;
+        }
+        .toggle-switch .knob {
+            width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: all 0.3s;
+        }
+        .toggle-on { background: #611BC5; justify-content: flex-end; }
+        .toggle-off { background: #D3DCF2; justify-content: flex-start; }
+
+        .highlight { background-color: #FFF3DC; color: #B86E00; padding: 0 2px; border-radius: 2px; font-weight: 600; }
     </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden selection:bg-indigo-500/30 selection:text-white">
+<body class="h-screen flex flex-col overflow-hidden">
 
-    <header class="flex items-center justify-between p-4 glass-panel border-b-0 shrink-0 z-10 mx-4 mt-4 rounded-2xl shadow-xl">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 border border-white/10">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l8.58-8.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+    <!-- Header -->
+    <header class="bg-ink text-white shrink-0 z-10 shadow-sm">
+        <div class="h-1 w-full" style="background: linear-gradient(90deg, #611BC5, #FF4F00);"></div>
+        <div class="max-w-[1600px] mx-auto px-6 min-h-[64px] flex items-center justify-between gap-4 flex-wrap">
+            <div class="flex items-center gap-3">
+                <div class="w-6 h-6 rounded bg-gradient-to-br from-grape to-primary flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l8.58-8.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+                </div>
+                <span class="w-[1px] h-5 bg-white/20"></span>
+                <span class="text-lg font-bold">PSM Tool</span>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-white/10 font-medium">Internal</span>
             </div>
-            <div>
-                <h1 class="text-lg font-bold tracking-tight text-white">
-                    SSP_REQ <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Diff Inspector</span>
-                </h1>
-                <p class="text-[11px] text-zinc-400 font-medium tracking-wide uppercase">Dev Tools Multicompare</p>
+            
+            <div class="flex gap-2 p-1.5 bg-white/10 rounded-lg">
+                <button id="toggle-inputs-btn" class="px-4 py-1.5 rounded-md bg-white text-ink text-sm font-medium transition-all shadow-sm flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="toggle-icon"><path d="M15 3h6v6"></path><path d="M9 21H3v-6"></path><path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path></svg>
+                    <span class="toggle-text">Hide Inputs</span>
+                </button>
             </div>
-        </div>
-        <div class="flex items-center gap-4">
-            <button id="toggle-inputs-btn" class="text-xs px-3 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 rounded-lg text-indigo-300 transition-colors flex items-center gap-2 group" title="Ocultar/Mostrar Entradas">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="toggle-icon transition-transform group-hover:scale-110"><path d="M15 3h6v6"></path><path d="M9 21H3v-6"></path><path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path></svg>
-                <span class="toggle-text">Ocultar Entradas</span>
-            </button>
         </div>
     </header>
 
-    <main class="flex-1 flex flex-col lg:flex-row min-h-0 gap-4 p-4 z-0">
+    <main class="flex-1 flex flex-col lg:flex-row min-h-0 gap-6 p-6 max-w-[1600px] w-full mx-auto">
         
-        <div id="inputs-panel" class="w-full lg:w-5/12 flex flex-col gap-3 relative overflow-hidden transition-all duration-300 ease-in-out">
-            
-            <div id="editors-container" class="flex-1 overflow-y-auto pr-2 pb-4 flex flex-col gap-4 scroll-smooth">
-                <!-- Los editores se inyectarán aquí dinámicamente vía JS -->
+        <!-- Panel de Entradas (Inputs) -->
+        <div id="inputs-panel" class="w-full lg:w-[45%] flex flex-col gap-4 relative transition-all duration-300">
+            <div class="flex flex-col gap-3 mb-2 shrink-0">
+                <div class="flex items-center justify-between">
+                    <h1 class="text-xl font-bold text-ink">Requests to compare</h1>
+                    <span class="text-sm text-muted">Supports up to 5 in parallel</span>
+                </div>
+                <div class="p-3.5 bg-white border border-line rounded-xl shadow-sm text-[13px] leading-relaxed">
+                    <span class="font-bold text-ink block mb-0.5">Request comparison.</span>
+                    <span class="text-muted">Compare two or more requests. You can paste the logs from the clickhouse report (full log) and it will take the request from "SSP_REQ", or the request already formatted (formatted request).</span>
+                </div>
+            </div>
+
+            <div id="editors-container" class="flex-1 overflow-y-auto pr-2 pb-2 flex flex-col gap-5">
+                <!-- Editores inyectados dinámicamente -->
             </div>
             
-            <button id="add-request-btn" class="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 border-dashed rounded-xl text-zinc-400 hover:text-zinc-200 transition-all text-xs font-semibold flex items-center justify-center gap-2 mb-2 shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                Añadir Request (Max 5)
+            <button id="add-request-btn" class="btn-ghost w-full py-3 border-2 border-dashed border-line rounded-xl mt-2">
+                + Add Request
             </button>
 
-            <!-- Botones de Acción Globales -->
-            <div class="flex gap-3 shrink-0 pt-2 border-t border-white/10">
-                <button id="compare-btn" class="btn-glow flex-1 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-xl transition-all text-sm font-bold flex items-center justify-center gap-2 border border-indigo-400/30 shadow-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
-                    Comparar Requests
+            <div class="flex gap-3 shrink-0 pt-4 border-t border-line mt-2">
+                <button id="compare-btn" class="btn-base btn-primary flex-1 py-3 text-base">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
+                    Process and Compare
                 </button>
-                <button id="clear-btn" class="btn-glow px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-red-400 hover:text-red-300 rounded-xl transition-all text-sm font-semibold border border-zinc-700 hover:border-zinc-500 flex items-center justify-center gap-2" title="Limpiar todo">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                <button id="clear-btn" class="btn-base btn-danger px-4 py-3" title="Clear Inputs">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </button>
             </div>
         </div>
 
-        <div id="compare-panel" class="w-full lg:w-7/12 flex flex-col glass-panel rounded-2xl shadow-2xl relative overflow-hidden flex-1 border border-white/10 transition-all duration-300 ease-in-out">
+        <div id="compare-panel" class="w-full lg:flex-1 flex flex-col bg-white border border-line rounded-xl shadow-sm relative overflow-hidden transition-all duration-300">
             
-            <div class="p-4 border-b border-white/5 bg-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0 backdrop-blur-md">
-                <div class="flex flex-col">
-                    <h2 class="text-sm font-semibold text-white flex items-center gap-2">
-                        Comparador de Parámetros
-                    </h2>
-                    <p class="text-xs text-zinc-400 mt-1">Soporta hasta 5 requests en paralelo</p>
+            <!-- Barra Superior Resultados -->
+            <div class="p-5 border-b border-line bg-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
+                <div class="flex flex-col gap-1">
+                    <h2 class="text-base font-bold text-ink">Parameter Breakdown</h2>
+                    <p class="text-xs text-muted font-medium uppercase tracking-widest">Unified View</p>
                 </div>
                 
-                <div class="flex items-center gap-3 w-full sm:w-auto">
-                    <label class="flex items-center cursor-pointer gap-2 mr-2">
-                        <div class="relative">
-                            <input type="checkbox" id="toggle-diff-only" class="sr-only" checked disabled>
-                            <div class="block bg-zinc-700 w-10 h-6 rounded-full transition-colors toggle-bg"></div>
-                            <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform transform translate-x-4"></div>
-                        </div>
-                        <span class="text-xs text-zinc-300 font-medium whitespace-nowrap">Solo Diff</span>
-                    </label>
+                <div class="flex items-center gap-4 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium text-ink">Differences only</span>
+                        <button id="toggle-diff-only" class="toggle-switch toggle-off" disabled>
+                            <span class="knob"></span>
+                        </button>
+                    </div>
 
-                    <div class="relative w-full sm:w-64 group">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-indigo-400 transition-colors"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                        <input type="text" id="search-param" placeholder="Buscar llave o valor (ej. pid)..." class="w-full bg-[#09090b] border border-zinc-700/80 rounded-lg py-2 pl-9 pr-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all disabled:opacity-50 shadow-inner" disabled>
+                    <div class="relative w-full sm:w-64">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input type="text" id="search-param" placeholder="Search parameter (e.g., pid)..." class="input-base w-full pl-9 py-2 bg-canvas disabled:opacity-50" disabled>
                     </div>
                 </div>
             </div>
 
-            <div class="hidden sm:flex px-7 py-2 bg-black/30 border-b border-white/5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm" id="table-header" style="display: none;">
-                <div class="w-full mt-1">
-                    <div class="flex gap-4 w-full" id="dynamic-headers">
-                        <!-- Cabeceras inyectadas por JS -->
-                    </div>
+            <!-- Cabecera Columnas Dinámicas -->
+            <div class="hidden sm:flex px-6 py-3 bg-canvas border-b border-line text-xs font-semibold text-muted uppercase tracking-wider sticky top-0 z-10" id="table-header" style="display: none;">
+                <div class="w-full flex gap-4" id="dynamic-headers">
+                    <!-- JS inyecta aquí las cabeceras -->
                 </div>
             </div>
 
-            <div id="params-list" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3 relative scroll-smooth pb-12">
-                <div class="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 p-8 text-center bg-gradient-to-b from-transparent to-black/20" id="empty-state">
-                    <div class="w-20 h-20 bg-zinc-800/50 rounded-full flex items-center justify-center mb-6 border border-zinc-700/50 shadow-inner">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-zinc-600"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+            <!-- Lista de Resultados -->
+            <div id="params-list" class="flex-1 overflow-y-auto flex flex-col relative scroll-smooth pb-12">
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-center p-8" id="empty-state">
+                    <div class="w-16 h-16 border-2 border-dashed border-line rounded-xl flex items-center justify-center mb-4 bg-canvas">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
                     </div>
-                    <h3 class="text-zinc-300 font-semibold mb-2">Añade y compara requests</h3>
-                    <p class="text-sm max-w-xs text-zinc-500 leading-relaxed">Pega tus logs o requests formateadas en los paneles izquierdos y presiona comparar para cruzar los datos visualmente.</p>
+                    <span class="text-sm font-medium text-ink">Waiting for data</span>
+                    <span class="text-xs text-muted mt-1 max-w-xs">Add requests on the left and click process to view the comparison.</span>
                 </div>
             </div>
-            
-            <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#18181b] to-transparent pointer-events-none"></div>
         </div>
     </main>
 
@@ -171,84 +239,86 @@
         document.addEventListener('DOMContentLoaded', () => {
             ace.config.set('basePath', 'https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/');
 
-            // Configuración Global y Colores Dinámicos
             const MAX_REQUESTS = 5;
             let editorIdCounter = 0;
-            const activeEditors = []; // [{id, color, instance, uiElements}]
+            const activeEditors = []; // {id, colorObj, instance, ui}
             let currentDiffData = [];
 
-            const PALETTE = [
-                { name: 'indigo', text: 'text-indigo-400', bg: 'bg-indigo-500/20', border: 'border-indigo-500/30', lightBg: 'bg-indigo-500/10' },
-                { name: 'cyan', text: 'text-cyan-400', bg: 'bg-cyan-500/20', border: 'border-cyan-500/30', lightBg: 'bg-cyan-500/10' },
-                { name: 'emerald', text: 'text-emerald-400', bg: 'bg-emerald-500/20', border: 'border-emerald-500/30', lightBg: 'bg-emerald-500/10' },
-                { name: 'rose', text: 'text-rose-400', bg: 'bg-rose-500/20', border: 'border-rose-500/30', lightBg: 'bg-rose-500/10' },
-                { name: 'amber', text: 'text-amber-400', bg: 'bg-amber-500/20', border: 'border-amber-500/30', lightBg: 'bg-amber-500/10' }
+            // Paleta basada en la Guía de Estilos (para diferenciar requests)
+            const BRAND_COLORS = [
+                { id: 'grape',   hex: '#611BC5', bg: '#F0E5FF' },
+                { id: 'info',    hex: '#0066FF', bg: '#E5F0FF' },
+                { id: 'accent',  hex: '#F971FF', bg: '#FEEDFF' },
+                { id: 'primary', hex: '#FF4F00', bg: '#FFF0E5' },
+                { id: 'ok',      hex: '#0F8A5F', bg: '#E3F4EC' }
             ];
 
-            const editorsContainer = document.getElementById('editors-container');
-            const addBtn = document.getElementById('add-request-btn');
-            const compareBtn = document.getElementById('compare-btn');
-            const clearBtn = document.getElementById('clear-btn');
-            const searchInput = document.getElementById('search-param');
-            const paramsList = document.getElementById('params-list');
-            const emptyState = document.getElementById('empty-state');
-            const tableHeader = document.getElementById('table-header');
-            const dynamicHeaders = document.getElementById('dynamic-headers');
-            const toggleDiffOnly = document.getElementById('toggle-diff-only');
-            
-            const inputsPanel = document.getElementById('inputs-panel');
-            const comparePanel = document.getElementById('compare-panel');
-            const toggleInputsBtn = document.getElementById('toggle-inputs-btn');
+            const elements = {
+                container: document.getElementById('editors-container'),
+                addBtn: document.getElementById('add-request-btn'),
+                compareBtn: document.getElementById('compare-btn'),
+                clearBtn: document.getElementById('clear-btn'),
+                searchInput: document.getElementById('search-param'),
+                paramsList: document.getElementById('params-list'),
+                emptyState: document.getElementById('empty-state'),
+                tableHeader: document.getElementById('table-header'),
+                dynamicHeaders: document.getElementById('dynamic-headers'),
+                toggleDiffBtn: document.getElementById('toggle-diff-only'),
+                inputsPanel: document.getElementById('inputs-panel'),
+                comparePanel: document.getElementById('compare-panel'),
+                toggleInputsBtn: document.getElementById('toggle-inputs-btn')
+            };
+
+            let isDiffOnly = false;
             let isInputsHidden = false;
 
             function createEditorUI() {
                 if (activeEditors.length >= MAX_REQUESTS) return;
                 
                 const id = ++editorIdCounter;
-                const num = activeEditors.length + 1;
-                const color = PALETTE[activeEditors.length]; // Coger siguiente color
+                const index = activeEditors.length;
+                const color = BRAND_COLORS[index];
+                const reqNum = index + 1;
 
                 const html = `
-                    <div class="flex-none flex flex-col glass-panel rounded-2xl p-4 shadow-2xl relative group min-h-[220px]" id="editor-block-${id}">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="flex items-center gap-2">
-                                <span class="w-5 h-5 rounded-md ${color.bg} ${color.text} flex items-center justify-center font-bold text-xs">${num}</span>
-                                <input type="text" id="req-title-${id}" value="Request ${num}" class="text-xs font-semibold text-zinc-300 uppercase tracking-wider bg-transparent border-b border-transparent outline-none w-32 placeholder-zinc-600 transition-colors focus:border-white/30" placeholder="Nombre...">
+                    <div class="flex flex-col bg-white border border-line rounded-xl p-4 shadow-sm" id="editor-block-${id}">
+                        <div class="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                            <div class="flex items-center gap-2 flex-1">
+                                <span class="w-2 h-2 rounded-full" style="background-color: ${color.hex}"></span>
+                                <input type="text" id="req-title-${id}" value="Request ${reqNum}" class="font-bold text-sm text-ink bg-transparent border-b border-transparent focus:border-grape outline-none w-32 transition-colors px-1 py-0.5">
                             </div>
                             <div class="flex items-center gap-2">
-                                <select id="req-mode-${id}" class="text-[10px] bg-black/30 border border-white/10 rounded px-1.5 py-1 text-zinc-400 outline-none focus:border-white/30 transition-colors font-medium">
-                                    <option value="log">Log Completo</option>
+                                <select id="req-mode-${id}" class="input-base py-1 px-2 text-xs font-medium">
+                                    <option value="log">Full Log</option>
                                     <option value="formatted">Formatted Req</option>
                                 </select>
-                                <button id="req-dl-${id}" class="text-zinc-500 hover:${color.text} transition-colors p-1" title="Descargar JSON Formateado">
+                                <button id="req-dl-${id}" class="btn-secondary p-1.5" title="Download Formatted">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                 </button>
                                 ${activeEditors.length > 1 ? `
-                                <button id="req-del-${id}" class="text-zinc-500 hover:text-red-400 transition-colors p-1" title="Eliminar Request">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                <button id="req-del-${id}" class="btn-danger p-1.5" title="Remove">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                                 </button>
                                 ` : ''}
                             </div>
                         </div>
-                        <div class="editor-container flex-1 relative">
+                        <div class="editor-container relative flex-1">
                             <div id="ace-editor-${id}"></div>
                         </div>
                     </div>
                 `;
 
-                editorsContainer.insertAdjacentHTML('beforeend', html);
+                elements.container.insertAdjacentHTML('beforeend', html);
 
-                // Configurar ACE
+                // Configuración de ACE Editor Claro
                 const aceInst = ace.edit(`ace-editor-${id}`);
-                aceInst.setTheme("ace/theme/tomorrow_night_eighties");
+                aceInst.setTheme("ace/theme/textmate"); // Tema claro legible
                 aceInst.session.setMode("ace/mode/json");
                 aceInst.setShowPrintMargin(false);
-                aceInst.setOptions({ scrollPastEnd: 0.2 });
+                aceInst.setOptions({ fontFamily: "'JetBrains Mono', monospace", fontSize: "13px" });
 
                 const editorObj = {
-                    id: id,
-                    color: color,
-                    instance: aceInst,
+                    id, color, instance: aceInst,
                     ui: {
                         block: document.getElementById(`editor-block-${id}`),
                         title: document.getElementById(`req-title-${id}`),
@@ -258,20 +328,13 @@
                     }
                 };
 
-                // Eventos del editor
+                // Eventos del nuevo bloque
                 editorObj.ui.dl.addEventListener('click', () => downloadJSON(editorObj));
-                if(editorObj.ui.del) {
-                    editorObj.ui.del.addEventListener('click', () => removeEditor(id));
-                }
-                
-                // Disparar redibujo de cabeceras dinámicas si cambia el título y la tabla está activa
+                if(editorObj.ui.del) editorObj.ui.del.addEventListener('click', () => removeEditor(id));
                 editorObj.ui.title.addEventListener('input', updateTableHeaders);
 
                 activeEditors.push(editorObj);
                 updateAddButtonState();
-                
-                // Scroll hacia el nuevo editor
-                editorObj.ui.block.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 return editorObj;
             }
 
@@ -283,12 +346,10 @@
                     ed.ui.block.remove();
                     activeEditors.splice(index, 1);
                     
-                    // Reasignar colores y números para mantener coherencia visual
+                    // Reasignar colores
                     activeEditors.forEach((editor, idx) => {
-                        editor.color = PALETTE[idx];
-                        const numSpan = editor.ui.block.querySelector('.w-5.h-5');
-                        numSpan.className = `w-5 h-5 rounded-md ${editor.color.bg} ${editor.color.text} flex items-center justify-center font-bold text-xs`;
-                        numSpan.textContent = idx + 1;
+                        editor.color = BRAND_COLORS[idx];
+                        editor.ui.block.querySelector('.w-2.h-2').style.backgroundColor = editor.color.hex;
                     });
                     
                     updateAddButtonState();
@@ -298,34 +359,36 @@
 
             function updateAddButtonState() {
                 if (activeEditors.length >= MAX_REQUESTS) {
-                    addBtn.disabled = true;
-                    addBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                    addBtn.textContent = 'Límite Máximo Alcanzado (5)';
+                    elements.addBtn.disabled = true;
+                    elements.addBtn.style.opacity = '0.5';
+                    elements.addBtn.textContent = 'Maximum Limit Reached (5)';
                 } else {
-                    addBtn.disabled = false;
-                    addBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    addBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Añadir Request`;
+                    elements.addBtn.disabled = false;
+                    elements.addBtn.style.opacity = '1';
+                    elements.addBtn.innerHTML = '+ Add Request';
                 }
             }
 
-            addBtn.addEventListener('click', () => createEditorUI());
+            elements.addBtn.addEventListener('click', () => createEditorUI());
 
             function findSspReq(obj) {
                 if (!obj || typeof obj !== 'object') return null;
                 if (obj.message === "SSP_REQ" && obj.log) return obj;
-                
                 if (Array.isArray(obj)) {
-                    for (let item of obj) {
-                        const found = findSspReq(item);
-                        if (found) return found;
-                    }
+                    for (let item of obj) { const f = findSspReq(item); if (f) return f; }
                 } else {
-                    for (let key in obj) {
-                        const found = findSspReq(obj[key]);
-                        if (found) return found;
-                    }
+                    for (let key in obj) { const f = findSspReq(obj[key]); if (f) return f; }
                 }
                 return null;
+            }
+
+            function parseRequest(rawText, mode) {
+                if (!rawText.trim()) throw new Error("Empty");
+                let parsed = JSON.parse(rawText);
+                if (mode === 'formatted') return parsed;
+                let sspReq = findSspReq(parsed);
+                if (!sspReq) throw new Error("No SSP_REQ found");
+                return JSON.parse(sspReq.log);
             }
 
             function flattenJSON(data, prefix = '') {
@@ -345,61 +408,23 @@
                 return result;
             }
 
-            function parseRequest(rawText, mode) {
-                if (!rawText.trim()) throw new Error("Vacío");
-                let parsed = JSON.parse(rawText);
-                
-                if (mode === 'formatted') {
-                    return parsed;
-                }
-                
-                let sspReq = findSspReq(parsed);
-                if (!sspReq) throw new Error("No SSP_REQ");
-                return JSON.parse(sspReq.log);
-            }
-
             function generateMultiDiff(flatsArray) {
                 const allKeysSet = new Set();
-                flatsArray.forEach(flat => {
-                    if(flat) Object.keys(flat).forEach(k => allKeysSet.add(k));
-                });
+                flatsArray.forEach(flat => { if(flat) Object.keys(flat).forEach(k => allKeysSet.add(k)); });
                 const sortedKeys = Array.from(allKeysSet).sort();
 
-                const diffs = [];
-
-                sortedKeys.forEach(key => {
-                    const values = flatsArray.map(flat => flat ? flat[key] : undefined);
-                    
-                    // Calcular estado (Igual si todos los presentes son idénticos y ninguno falta)
+                return sortedKeys.map(key => {
+                    const vals = flatsArray.map(flat => flat ? flat[key] : undefined);
                     let status = 'equal';
                     let firstVal = undefined;
-                    let missingAny = false;
-                    let different = false;
-
-                    for (let i = 0; i < values.length; i++) {
-                        if (values[i] === undefined) {
-                            missingAny = true;
-                        } else {
-                            if (firstVal === undefined) {
-                                firstVal = values[i];
-                            } else if (firstVal !== values[i]) {
-                                different = true;
-                            }
-                        }
+                    
+                    for (let i = 0; i < vals.length; i++) {
+                        if (vals[i] === undefined) { status = 'changed'; break; }
+                        if (firstVal === undefined) firstVal = vals[i];
+                        else if (firstVal !== vals[i]) { status = 'changed'; break; }
                     }
-
-                    if (missingAny || different) {
-                        status = 'changed';
-                    }
-
-                    diffs.push({
-                        key,
-                        vals: values.map(v => v !== undefined ? String(v) : null),
-                        status
-                    });
+                    return { key, vals: vals.map(v => v !== undefined ? String(v) : null), status };
                 });
-
-                return diffs;
             }
 
             function formatValue(val) {
@@ -410,95 +435,97 @@
 
             function updateTableHeaders() {
                 if (activeEditors.length === 0) return;
-                dynamicHeaders.innerHTML = '';
+                elements.dynamicHeaders.innerHTML = '';
                 
-                activeEditors.forEach((editor) => {
+                activeEditors.forEach(editor => {
                     const title = editor.ui.title.value || `Req ${editor.id}`;
-                    const headerCol = document.createElement('div');
-                    headerCol.className = 'flex-1 flex justify-center overflow-hidden';
-                    headerCol.innerHTML = `<span class="${editor.color.bg} ${editor.color.text} px-2 py-0.5 rounded truncate max-w-[200px]" title="${title}">${title}</span>`;
-                    dynamicHeaders.appendChild(headerCol);
+                    const col = document.createElement('div');
+                    col.className = 'flex-1 flex justify-start items-center gap-2 overflow-hidden px-2';
+                    col.innerHTML = `
+                        <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${editor.color.hex}"></span>
+                        <span class="truncate text-ink font-bold" title="${title}">${title}</span>
+                    `;
+                    elements.dynamicHeaders.appendChild(col);
                 });
             }
 
             function renderDiffs(diffs) {
-                emptyState.style.display = 'none';
-                tableHeader.style.display = 'flex';
-                searchInput.disabled = false;
-                toggleDiffOnly.disabled = false;
-                paramsList.innerHTML = ''; 
+                elements.emptyState.style.display = 'none';
+                elements.tableHeader.style.display = 'flex';
+                elements.searchInput.disabled = false;
+                elements.toggleDiffBtn.disabled = false;
+                elements.paramsList.innerHTML = ''; 
                 updateTableHeaders();
 
                 if (diffs.length === 0) {
-                    paramsList.innerHTML = '<div class="text-zinc-500 text-sm p-4 text-center mt-10">No se encontraron parámetros válidos para comparar.</div>';
+                    elements.paramsList.innerHTML = '<div class="text-muted text-sm p-4 text-center mt-10">No valid parameters found.</div>';
                     return;
                 }
 
                 diffs.forEach(item => {
                     const row = document.createElement('div');
-                    row.className = 'param-row param-card flex flex-col p-3.5 bg-[#121214] rounded-xl border border-white/5 group gap-2';
+                    row.className = 'param-row flex flex-col p-4 gap-2 bg-white';
                     row.dataset.key = item.key;
                     row.dataset.status = item.status;
-                    
-                    // Guardar todos los valores para la búsqueda
-                    item.vals.forEach((v, idx) => {
-                        row.dataset[`v${idx}`] = v || "";
-                    });
+                    item.vals.forEach((v, idx) => row.dataset[`v${idx}`] = v || "");
 
-                    // Cabecera: Llave y Badge
+                    // Cabecera Row (Llave + Status)
                     const header = document.createElement('div');
-                    header.className = 'flex justify-between items-center';
+                    header.className = 'flex justify-between items-center mb-1';
                     
                     const keySpan = document.createElement('span');
-                    keySpan.className = 'text-[13px] text-indigo-300 font-mono break-all font-medium key-text';
+                    keySpan.className = 'text-[13px] text-ink font-mono font-bold break-all key-text';
                     keySpan.textContent = item.key;
 
-                    const badge = document.createElement('span');
-                    badge.className = `status-badge status-changed`;
-                    badge.textContent = 'Diferente';
-                    if(item.status === 'equal') badge.style.display = 'none';
-
                     header.appendChild(keySpan);
-                    header.appendChild(badge);
+                    
+                    if(item.status !== 'equal') {
+                        const badge = document.createElement('span');
+                        badge.className = 'badge bg-warnBg text-warn border border-warn/20';
+                        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-warn"></span> Different';
+                        header.appendChild(badge);
+                    }
                     row.appendChild(header);
 
-                    // Contenedor Multicolumna de Valores
+                    // Contenedor Valores
                     const valsContainer = document.createElement('div');
-                    valsContainer.className = 'flex gap-4 mt-1 bg-black/20 p-2 rounded-lg border border-white/5 w-full';
+                    valsContainer.className = 'flex gap-4 w-full';
 
                     item.vals.forEach((val, i) => {
                         const colDiv = document.createElement('div');
-                        colDiv.className = 'flex-1 flex items-center justify-center overflow-hidden rounded border min-w-0';
+                        colDiv.className = 'flex-1 flex items-center overflow-hidden rounded border px-3 py-2 min-w-0';
                         
                         const color = activeEditors[i].color;
                         const vFormatted = formatValue(val);
 
                         if (item.status === 'equal') {
-                            colDiv.className += ' bg-white/5 border-white/5 px-2 py-1.5';
-                            colDiv.innerHTML = `<span class="text-[13px] text-zinc-400 font-mono truncate val-text" title='${vFormatted}'>${vFormatted}</span>`;
+                            colDiv.style.backgroundColor = '#F5F7FC';
+                            colDiv.style.borderColor = '#D3DCF2';
+                            colDiv.innerHTML = `<span class="text-[13px] text-muted font-mono truncate val-text" title='${vFormatted}'>${vFormatted}</span>`;
                         } else {
                             if (val === null) {
-                                colDiv.className += ' bg-black/30 border-white/5 opacity-60 px-2 py-1.5';
-                                colDiv.innerHTML = `<span class="text-[13px] text-zinc-600 font-mono italic">No presente</span>`;
+                                colDiv.style.backgroundColor = '#F5F7FC';
+                                colDiv.style.borderColor = '#D3DCF2';
+                                colDiv.style.opacity = '0.7';
+                                colDiv.innerHTML = `<span class="text-[13px] text-muted font-mono italic">Not present</span>`;
                             } else {
-                                colDiv.className += ` ${color.lightBg} ${color.border} px-2 py-1.5`;
-                                colDiv.innerHTML = `<span class="text-[13px] ${color.text} font-mono truncate val-text" title='${vFormatted}'>${vFormatted}</span>`;
+                                colDiv.style.backgroundColor = color.bg;
+                                colDiv.style.borderColor = color.hex + '40';
+                                colDiv.innerHTML = `<span class="text-[13px] font-mono truncate val-text font-medium" style="color: ${color.hex}" title='${vFormatted}'>${vFormatted}</span>`;
                             }
                         }
-                        
                         valsContainer.appendChild(colDiv);
                     });
 
                     row.appendChild(valsContainer);
-                    paramsList.appendChild(row);
+                    elements.paramsList.appendChild(row);
                 });
 
                 applyFilters();
             }
 
             function applyFilters() {
-                const term = searchInput.value.toLowerCase();
-                const diffOnly = toggleDiffOnly.checked;
+                const term = elements.searchInput.value.toLowerCase();
                 const rows = document.querySelectorAll('.param-row');
                 
                 rows.forEach(row => {
@@ -509,19 +536,14 @@
                     if (!matchesSearch) {
                         for (let i = 0; i < activeEditors.length; i++) {
                             const val = row.dataset[`v${i}`].toLowerCase();
-                            if (val.includes(term)) {
-                                matchesSearch = true;
-                                break;
-                            }
+                            if (val.includes(term)) { matchesSearch = true; break; }
                         }
                     }
 
-                    const matchesDiff = !diffOnly || status !== 'equal';
+                    const matchesDiff = !isDiffOnly || status !== 'equal';
 
                     if (matchesSearch && matchesDiff) {
                         row.style.display = 'flex';
-                        
-                        // Highlight Visual
                         const keyEl = row.querySelector('.key-text');
                         if (term && key.includes(term)) {
                             const regex = new RegExp(`(${term})`, 'gi');
@@ -537,36 +559,28 @@
 
             function showError(editor) {
                 const el = editor.ui.block;
-                el.style.borderColor = '#ef4444';
+                el.style.borderColor = '#D6283B';
                 setTimeout(() => el.style.borderColor = '', 1500);
             }
 
             function downloadJSON(editor) {
                 try {
-                    const txt = editor.instance.getValue();
-                    const parsed = parseRequest(txt, editor.ui.mode.value);
+                    const parsed = parseRequest(editor.instance.getValue(), editor.ui.mode.value);
                     const blob = new Blob([JSON.stringify(parsed, null, 4)], { type: "application/json" });
-                    const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
-                    a.href = url;
-                    const defaultName = editor.ui.title.value || `request_${editor.id}`;
-                    a.download = `${defaultName.replace(/\s+/g, '_').toLowerCase()}.json`;
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${(editor.ui.title.value || `request_${editor.id}`).replace(/\s+/g, '_').toLowerCase()}.json`;
                     a.click();
-                    URL.revokeObjectURL(url);
-                } catch(e) {
-                    showError(editor);
-                }
+                } catch(e) { showError(editor); }
             }
 
-            compareBtn.addEventListener('click', () => {
+            elements.compareBtn.addEventListener('click', () => {
                 const parsedRequests = [];
                 let hasError = false;
 
                 activeEditors.forEach(editor => {
-                    const txt = editor.instance.getValue();
                     try {
-                        const req = parseRequest(txt, editor.ui.mode.value);
-                        parsedRequests.push(req);
+                        parsedRequests.push(parseRequest(editor.instance.getValue(), editor.ui.mode.value));
                     } catch (e) {
                         showError(editor);
                         hasError = true;
@@ -575,76 +589,50 @@
 
                 if (hasError) return;
 
-                const flattenedRequests = parsedRequests.map(req => flattenJSON(req));
-                currentDiffData = generateMultiDiff(flattenedRequests);
+                currentDiffData = generateMultiDiff(parsedRequests.map(req => flattenJSON(req)));
                 renderDiffs(currentDiffData);
-
-                // Animación de Éxito
-                const originalText = compareBtn.innerHTML;
-                compareBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Análisis Completo`;
-                compareBtn.classList.replace('from-indigo-600', 'from-emerald-600');
-                compareBtn.classList.replace('to-blue-600', 'to-teal-500');
-                
-                setTimeout(() => {
-                    compareBtn.innerHTML = originalText;
-                    compareBtn.classList.replace('from-emerald-600', 'from-indigo-600');
-                    compareBtn.classList.replace('to-teal-500', 'to-blue-600');
-                }, 1500);
             });
 
-            searchInput.addEventListener('input', applyFilters);
+            elements.searchInput.addEventListener('input', applyFilters);
             
-            toggleDiffOnly.addEventListener('change', (e) => {
-                const dot = e.target.nextElementSibling.nextElementSibling;
-                const bg = e.target.nextElementSibling;
-                if(e.target.checked) {
-                    dot.classList.add('translate-x-4');
-                    bg.classList.replace('bg-zinc-700', 'bg-indigo-500');
-                } else {
-                    dot.classList.remove('translate-x-4');
-                    bg.classList.replace('bg-indigo-500', 'bg-zinc-700');
-                }
+            elements.toggleDiffBtn.addEventListener('click', () => {
+                isDiffOnly = !isDiffOnly;
+                elements.toggleDiffBtn.className = `toggle-switch ${isDiffOnly ? 'toggle-on' : 'toggle-off'}`;
                 applyFilters();
             });
 
-            clearBtn.addEventListener('click', () => {
+            elements.clearBtn.addEventListener('click', () => {
                 activeEditors.forEach(ed => ed.instance.setValue("", -1));
                 currentDiffData = [];
-                paramsList.innerHTML = '';
-                emptyState.style.display = 'flex';
-                tableHeader.style.display = 'none';
-                searchInput.disabled = true;
-                searchInput.value = '';
-                toggleDiffOnly.disabled = true;
-            });
-            
-            // Toggle de Inputs
-            toggleInputsBtn.addEventListener('click', () => {
-                isInputsHidden = !isInputsHidden;
-                const icon = toggleInputsBtn.querySelector('.toggle-icon');
-                const text = toggleInputsBtn.querySelector('.toggle-text');
-                
-                if (isInputsHidden) {
-                    inputsPanel.classList.add('hidden', 'lg:hidden');
-                    comparePanel.classList.replace('lg:w-7/12', 'lg:w-full');
-                    text.textContent = 'Mostrar Entradas';
-                    icon.innerHTML = `<path d="M4 14h6v6"></path><path d="M20 10h-6V4"></path><path d="M14 10l7-7"></path><path d="M3 21l7-7"></path>`; // Shrink icon
-                } else {
-                    inputsPanel.classList.remove('hidden', 'lg:hidden');
-                    comparePanel.classList.replace('lg:w-full', 'lg:w-7/12');
-                    text.textContent = 'Ocultar Entradas';
-                    icon.innerHTML = `<path d="M15 3h6v6"></path><path d="M9 21H3v-6"></path><path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path>`; // Expand icon
-                }
-                
-                // Redimensionar editores de Ace al cambiar el layout
-                setTimeout(() => {
-                    activeEditors.forEach(ed => {
-                        ed.instance.resize();
-                    });
-                }, 310); // Ligeramente después de la transición de 300ms
+                elements.paramsList.innerHTML = '';
+                elements.emptyState.style.display = 'flex';
+                elements.tableHeader.style.display = 'none';
+                elements.searchInput.disabled = true;
+                elements.searchInput.value = '';
+                isDiffOnly = false;
+                elements.toggleDiffBtn.className = 'toggle-switch toggle-off';
+                elements.toggleDiffBtn.disabled = true;
             });
 
-            // Inicializar con 2 editores por defecto
+            elements.toggleInputsBtn.addEventListener('click', () => {
+                isInputsHidden = !isInputsHidden;
+                const icon = elements.toggleInputsBtn.querySelector('.toggle-icon');
+                const text = elements.toggleInputsBtn.querySelector('.toggle-text');
+                
+                if (isInputsHidden) {
+                    elements.inputsPanel.classList.add('hidden', 'lg:hidden');
+                    text.textContent = 'Show Inputs';
+                    icon.innerHTML = `<path d="M4 14h6v6"></path><path d="M20 10h-6V4"></path><path d="M14 10l7-7"></path><path d="M3 21l7-7"></path>`;
+                } else {
+                    elements.inputsPanel.classList.remove('hidden', 'lg:hidden');
+                    text.textContent = 'Hide Inputs';
+                    icon.innerHTML = `<path d="M15 3h6v6"></path><path d="M9 21H3v-6"></path><path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path>`;
+                }
+                
+                setTimeout(() => activeEditors.forEach(ed => ed.instance.resize()), 300);
+            });
+
+            // Iniciar con 2 editores
             createEditorUI();
             createEditorUI();
         });
