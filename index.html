@@ -388,7 +388,13 @@
                 if (mode === 'formatted') return parsed;
                 let sspReq = findSspReq(parsed);
                 if (!sspReq) throw new Error("No SSP_REQ found");
-                return JSON.parse(sspReq.log);
+                
+                if (typeof sspReq.log === 'string') {
+                    return JSON.parse(sspReq.log);
+                } else if (typeof sspReq.log === 'object' && sspReq.log !== null) {
+                    return sspReq.log;
+                }
+                throw new Error("Invalid log format");
             }
 
             function flattenJSON(data, prefix = '') {
